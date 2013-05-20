@@ -4,6 +4,7 @@ from scrapy.http import Request, FormRequest
 from scrapy.selector import HtmlXPathSelector
 import time
 import os
+import re
 
 class FindlawSpider(CrawlSpider):
     case_listings = 0
@@ -59,8 +60,12 @@ class FindlawSpider(CrawlSpider):
         name = response.url[len(FindlawSpider.STUB):-len('.html')].split('%2F')
         #should be the form [courttype, slip, date, uniquename]
         name = ''.join([field + '.' for field in name])[:-1]
-        dest = FindlawSpider.current_dir + '/' + name
+        #dest = FindlawSpider.current_dir + '/' + name
+        dest = 'case'
         print "writing to file:", dest
+        
+        re.match('',response.body).group()
+        
         with open(dest, 'w') as f:
             f.write(response.body)
         print "========FINISHED CASE=========="
