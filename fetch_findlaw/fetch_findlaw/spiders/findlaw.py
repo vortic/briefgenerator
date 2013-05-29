@@ -4,25 +4,24 @@ from scrapy.http import Request, FormRequest
 from scrapy.selector import HtmlXPathSelector
 import time
 import os
-import re
+import pickle
 
 class FindlawSpider(CrawlSpider):
     case_listings = 0
     cases = 0
     STUB = 'http://login.findlaw.com/scripts/callaw?dest='
-    current_dir = None
     
     name="findlaw"
     start_urls = ["http://www.findlaw.com/cacases/"]
     login_page = 'http://login.findlaw.com/scripts/login'
     rules = [#Rule(SgmlLinkExtractor(allow='http://caselaw.lp.findlaw.com/ca/slip/[0-9_]+.html$',),
              #     'parse_case_listing', follow=True),
-             Rule(SgmlLinkExtractor(allow='login.findlaw.com/scripts/callaw\?dest=ca/[0-9a-z]+/slip/[0-9]+/[a-z0-9]+.html$'),
-                  'parse_case', follow=True),
-             Rule(SgmlLinkExtractor(allow='http://caselaw.lp.findlaw.com/ca/slip/2013_[0-9]+.html'),
+#              Rule(SgmlLinkExtractor(allow='login.findlaw.com/scripts/callaw\?dest=ca/[0-9a-z]+/slip/[0-9]+/[a-z0-9]+.html$'),
+#                   'parse_case', follow=True),
+             Rule(SgmlLinkExtractor(allow='http://caselaw.lp.findlaw.com/ca/slip/2013_1.html'),
                   'parse_case_listing', follow=True),
-#             Rule(SgmlLinkExtractor(allow='http://login.findlaw.com/scripts/callaw\?dest=ca/cal4th/slip/2013/s190581.html'),
-#                  'parse_case', follow=True)
+             Rule(SgmlLinkExtractor(allow='http://login.findlaw.com/scripts/callaw\?dest=ca/cal4th/slip/2013/s190581.html'),
+                 'parse_case', follow=True)
              ]
 
 
@@ -47,12 +46,6 @@ class FindlawSpider(CrawlSpider):
         print "==========FOUND A CASE LISTING==========", FindlawSpider.case_listings
         FindlawSpider.case_listings += 1
         print "url:", response.url
-#        name = response.url.split('/')[-1][:-len('.html')].split('_')[0]
-#        try:
-#            os.mkdir(name)
-#        except:
-#            pass
-#        FindlawSpider.current_dir = name
     
     def parse_case(self, response):
         print "=========FOUND A CASE===========", FindlawSpider.cases
@@ -60,13 +53,15 @@ class FindlawSpider(CrawlSpider):
         name = response.url[len(FindlawSpider.STUB):-len('.html')].split('%2F')
         #should be the form [courttype, slip, date, uniquename]
         name = ''.join([field + '.' for field in name])[:-1]
-        #dest = FindlawSpider.current_dir + '/' + name
-        dest = 'case'
+        try:
+            os.mkdir('cases')
+        except:
+            pass
+        dest = 'cases/' + name
         print "writing to file:", dest
-        
-        re.match('',response.body).group()
-        
         with open(dest, 'w') as f:
             f.write(response.body)
+        with open('response.pickle', 'w') as f:
+            pickle.dump(response, f)
         print "========FINISHED CASE=========="
-        time.sleep(1)
+        time.sleep(5)
