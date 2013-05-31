@@ -4,7 +4,6 @@ from scrapy.http import Request, FormRequest
 from scrapy.selector import HtmlXPathSelector
 import time
 import os
-import pickle
 
 class FindlawSpider(CrawlSpider):
     case_listings = 0
@@ -16,12 +15,12 @@ class FindlawSpider(CrawlSpider):
     login_page = 'http://login.findlaw.com/scripts/login'
     rules = [#Rule(SgmlLinkExtractor(allow='http://caselaw.lp.findlaw.com/ca/slip/[0-9_]+.html$',),
              #     'parse_case_listing', follow=True),
-#              Rule(SgmlLinkExtractor(allow='login.findlaw.com/scripts/callaw\?dest=ca/[0-9a-z]+/slip/[0-9]+/[a-z0-9]+.html$'),
-#                   'parse_case', follow=True),
+            Rule(SgmlLinkExtractor(allow='login.findlaw.com/scripts/callaw\?dest=ca/[0-9a-z]+/slip/[0-9]+/[a-z0-9]+.html$'),
+                 'parse_case', follow=True),
              Rule(SgmlLinkExtractor(allow='http://caselaw.lp.findlaw.com/ca/slip/2013_1.html'),
                   'parse_case_listing', follow=True),
-             Rule(SgmlLinkExtractor(allow='http://login.findlaw.com/scripts/callaw\?dest=ca/cal4th/slip/2013/s190581.html'),
-                 'parse_case', follow=True)
+#              Rule(SgmlLinkExtractor(allow='http://login.findlaw.com/scripts/callaw\?dest=ca/cal4th/slip/2013/s190581.html'),
+#                  'parse_case', follow=True)
              ]
 
 
@@ -59,9 +58,13 @@ class FindlawSpider(CrawlSpider):
             pass
         dest = 'cases/' + name
         print "writing to file:", dest
-        with open(dest, 'w') as f:
+        with open(dest + '.html', 'w') as f:
             f.write(response.body)
-        with open('response.pickle', 'w') as f:
-            pickle.dump(response, f)
+#         x = HtmlXPathSelector(response)
+#         for node in x.select():
+#             print node.extract()
+#         with open(dest + '_text', 'w') as f:
+#             for line in x.select('//p/text()').extract():
+#                 f.write(line.encode("utf-8"))
         print "========FINISHED CASE=========="
         time.sleep(5)
