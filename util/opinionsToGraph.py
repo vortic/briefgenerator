@@ -1,4 +1,4 @@
-import re
+import re 
 
 def getNodes(filename, group=0):
     title = False
@@ -41,13 +41,15 @@ def getAllNodesAndLinks(nodes, links = []):
                     for link in allNodes:
                         if link.get("name") == potentialLink:
                             links.append({"source":docNum,\
-                                "target":allNodes.index(link),"value":5})
+                                "target":allNodes.index(link),"value":5,
+                                "text":allNodes[docNum].get("text")})
                             foundLink = True
                     if not foundLink:
                         newNodeName = {"name":potentialLink,"group":9,"text":''}
                         allNodes.append(newNodeName)
                         links.append({"source":docNum,\
-                            "target":allNodes.index(newNodeName),"value":5})
+                            "target":allNodes.index(newNodeName),"value":5,
+                            "text":allNodes[docNum].get("text")})
     return (allNodes, links)
 
 if __name__ == "__main__":
