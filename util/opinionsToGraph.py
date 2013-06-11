@@ -1,6 +1,9 @@
-import re 
+import re, nltk
 
 def getNodes(filename, group=0):
+    """
+    Gets nodes for the d3 representation of the graph
+    """
     title = False
     body = False
     caseText = ''
@@ -29,11 +32,15 @@ def getNodes(filename, group=0):
     return nodes
 
 def getAllNodesAndLinks(nodes, links = []):
+    """
+    Gets edges from the nodes gotten in getNodes and also makes
+    nodes for newly-discovered cases (ones for which we don't have the text)
+    """
     allNodes = nodes
     for op,docNum in zip(nodes,range(0,len(nodes))):
         body = op.get("text")
-        reg = '(\d+\s+?Cal\..\s?App\s?.*?\s+\d+)[;|,|\s\[|\.]' #Only gets links with "App" in them
-        #reg = '(\d+\s+?Cal\.\s?[a-zA-Z0-9\.]*?\s+?\d+)[;|,|\s\[|\.]+?' #Gets all links
+        #reg = '(\d+\s+?Cal\..\s?App\s?.*?\s+\d+)[;|,|\s\[|\.]' #Only gets links with "App" in them
+        reg = '(\d+\s+?Cal\.\s?[a-zA-Z0-9\.]*?\s+?\d+)[;|,|\s\[|\.]+?' #Gets all links
         for result in re.finditer(reg, body):
             for potentialLink in result.groups():
                 if not 'at' in potentialLink: #Ignoring things like (55 Cal. App. 4th at p. 1065)
@@ -51,6 +58,62 @@ def getAllNodesAndLinks(nodes, links = []):
                             "target":allNodes.index(newNodeName),"value":5,
                             "text":allNodes[docNum].get("text")})
     return (allNodes, links)
+
+def getAltRepresentation(allNodes, links):
+    """
+    Converts the d3 representation of the graph to a more human-friendly one
+    """
+    ret = {}
+    for node,srcIndex in zip(allNodes,range(0,len(allNodes))):
+        name = node.get("name")
+        ret[name] = []
+        for link in links:
+            if link.get("source") == srcIndex:
+                targetIndex = link.get("target")
+                ret[name].append(allNodes[targetIndex].get("name"))
+    return ret
+
+def getGraph(inFile, outFile = 'opinions.json'):
+    """
+    Given an input file, outputs a d3-friendly output file
+    """
+    nodes = getNodes(inFile)
+    (allNodes, links) = getAllNodesAndLinks(nodes)
+    with open(outFile, 'w') as out:
+        out.write(json.dumps({"nodes":allNodes,"links":links}))
+
+def getContext(allNodes, links): 
+    """
+    Gets the sentence before and the sentence after each citation
+    """
+    trainer = nltk.tokenize.punkt.PunktSentenceTokenizer()
+    trainer.train("data/real_estate.txt") #Sentence fragmenter trained on real_estate (arbitrarily)
+    for node,srcIndex in zip(allNodes,range(0,len(allNodes))):
+        name = node.get("name")
+        tokens = trainer.tokenize(node.get("text"))
+        for link in links:
+            if link.get("source") == srcIndex:
+                target = allNodes[link.get("target")].get("name")
+                for sentence,sentIndex in zip(tokens,range(0,len(tokens))):
+                    if target in sentence:
+                        prevSent = ''
+                        i = 1
+                        while len(prevSent.split(' ')) < 10: #If the previous sentence was too short, add more
+                            try:
+                                prevSent = tokens[sentIndex-i] + prevSent
+                            except:
+                                break
+                            i += 1
+                        print 'PREV SENTENCE: ' + prevSent
+                        print 'CURRENT SENTENCE: ' + sentence
+                        nextSent = ''
+                        while len(nextSent.split(' ')) < 10: #Same with the next sentence
+                            try:
+                                nextSent += tokens[sentIndex+i]
+                            except:
+                                break
+                            i += 1
+                        print 'NEXT SENTENCE: ' + nextSent
 
 if __name__ == "__main__":
     import argparse, json, os
