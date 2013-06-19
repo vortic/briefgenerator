@@ -1,4 +1,5 @@
 import re, nltk
+from nltk.tokenize import punkt
 
 def getNodes(filename, group=0):
     """
@@ -86,7 +87,7 @@ def getContext(allNodes, links):
     """
     Gets the sentence before and the sentence after each citation
     """
-    trainer = nltk.tokenize.punkt.PunktSentenceTokenizer()
+    trainer = punkt.PunktSentenceTokenizer()
     trainer.train("data/real_estate.txt") #Sentence fragmenter trained on real_estate (arbitrarily)
     for node,srcIndex in zip(allNodes,range(0,len(allNodes))):
         name = node.get("name")
