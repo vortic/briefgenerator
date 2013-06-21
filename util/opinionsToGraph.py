@@ -16,7 +16,7 @@ def getNodes(filename, group=0):
         line = line.strip()
         if re.match('[0-9]+ of 100 DOCUMENTS', line): #Matches title of a new brief
             if nodeName is not '':
-                nodes.append({"name":nodeName,"group":group,"text":caseText})
+                nodes.append({"name":nodeName,"group":group,"text":caseText.replace(u"\uFFFD\uFFFD\uFFFD", u"\u2029")})
             caseText = ''
             title = True
             continue
@@ -29,7 +29,7 @@ def getNodes(filename, group=0):
                 splitNodeNames = line.split(';')
                 nodeName = splitNodeNames[0]
         if body:
-            caseText += unicode(line, errors='ignore') + ' '
+            caseText += unicode(line, errors='replace') + ' '
     return nodes
 
 def getAllNodesAndLinks(nodes, links = []):
@@ -115,6 +115,29 @@ def getContext(allNodes, links):
                                 break
                             i += 1
                         print 'NEXT SENTENCE: ' + nextSent
+
+def getConclusions(allNodes, links): 
+    trainer = nltk.tokenize.punkt.PunktSentenceTokenizer()
+    trainer.train("data/real_estate.txt") #Sentence fragmenter trained on real_estate (arbitrarily)
+    for node,srcIndex in zip(allNodes,range(0,len(allNodes))):
+        name = node.get("name")
+        tokens = trainer.tokenize(node.get("text"))
+        for sentence,sentIndex in zip(tokens,range(0,len(tokens))):
+            if "We conclude" in sentence or "we conclude" in sentence:
+                print str(srcIndex) + ':\t' + sentence
+
+def getDecisions(allNodes, links): 
+    trainer = nltk.tokenize.punkt.PunktSentenceTokenizer()
+    trainer.train("data/real_estate.txt") #Sentence fragmenter trained on real_estate (arbitrarily)
+    for node,srcIndex in zip(allNodes,range(0,len(allNodes))):
+        name = node.get("name")
+        tokens = trainer.tokenize(node.get("text"))
+        lastSentences = tokens[-3:]
+        for sentence in lastSentences:
+            if "reversed" in sentence or "reverse" in sentence:
+                print str(srcIndex) + ':\t(-)\t' + str(sentence)
+            if "affirmed" in sentence or "affirm" in sentence:
+                print str(srcIndex) + ':\t(+)\t' + str(sentence)
 
 if __name__ == "__main__":
     import argparse, json, os
