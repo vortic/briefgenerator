@@ -4,6 +4,7 @@ import ply.yacc as yacc
 http://www.cs.kuleuven.be/groups/liir/publication_files/ICAIL09-final-withBib.pdf
 """
 
+#Terminals
 tokens = (
     'N','S','RC','RS','RA','RART','VP','F'
 )
@@ -16,9 +17,10 @@ t_VP = r'[nN]ote|[rR]ecall|[sS]tate'
 t_VC = r'[rR]eject|[dD]ismiss|[dD]eclare'
 t_F = r'[cC]ourt|[jJ]ury|[cC]ommission'
 
+#Nonterminals
 def p_t(p):
     't:aPlus d'
-    #p[0] = p[1] + p[3]
+    #PUT SDT HERE 
 
 def p_a(p):
     '''a:aPlus c
@@ -26,11 +28,11 @@ def p_a(p):
         |c N S
         |aStar S RC c
         |pPlus'''
-    #p[0] = p[1] + p[3]
+    #PUT SDT HERE 
 
 def p_d(p):
     'd:RC F dHelper'
-    #p[0] = p[1] + p[3]
+    #PUT SDT HERE
 
 def p_p(p):
     '''p:pVerbP
@@ -39,15 +41,15 @@ def p_p(p):
         |p pAg
         |S pSup
         |S pAg'''
-    #p[0] = p[1] + p[3]
+    #PUT SDT HERE
 
 def p_pVerbP(p):
     'pVerbP:S VP S'
-    #p[0] = p[1] + p[3]
+    #PUT SDT HERE
 
 def p_pArt(p):
     'pArt:S RART S'
-    #p[0] = p[1] + p[3]
+    #PUT SDT HERE
 
 def p_pSup(p):
     '''pSup:RS S
@@ -55,7 +57,7 @@ def p_pSup(p):
         |RS pArt
         |RS pSup
         |RS pAg'''
-    #p[0] = p[1] + p[3]
+    #PUT SDT HERE
 
 def p_pAg(p):
     '''pAg:RA S
@@ -63,7 +65,7 @@ def p_pAg(p):
         |RA pArt
         |RA pSup
         |RA pAG'''
-    #p[0] = p[1] + p[3]
+    #PUT SDT HERE
 
 def p_c(p):
     '''c:RC S
@@ -74,6 +76,36 @@ def p_c(p):
         |RS RC pVerbP
         |sStar VC S
     '''
-    #p[0] = p[1] + p[3]
+    #PUT SDT HERE
+
+#Helpers
+def p_empty(p):
+    'empty:'
+    pass
+
+def p_aPlus(p):
+    '''aPlus:a aPlus
+        |a'''
+    #PUT SDT HERE
+
+def p_aStar(p):
+    '''aStar:a aStar
+        |empty'''
+    #PUT SDT HERE
+
+def p_pPlus(p):
+    '''pPlus:p pPlus
+        |p'''
+    #PUT SDT HERE
+
+#missing some things here - wasn't sure whether '.' was a literal or not
+def p_dHelper(p):
+    '''dHelper:VC S dHelper
+        |VC S'''
+    #PUT SDT HERE
+
+#Error rule for syntax errors
+def p_error(p):
+    print "Syntax error in input!"
 
 parser = yacc.yacc()
