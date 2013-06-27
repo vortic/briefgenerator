@@ -20,7 +20,7 @@ t_F = r'[cC]ourt|[jJ]ury|[cC]ommission'
 #Nonterminals
 def p_t(p):
     't:aPlus d'
-    #PUT SDT HERE 
+    p[0] = ('General structure', p[1], p[2])
 
 def p_a(p):
     '''a:aPlus c
@@ -28,11 +28,18 @@ def p_a(p):
         |c N S
         |aStar S RC c
         |pPlus'''
-    #PUT SDT HERE 
+    if len(p) == 2:
+        p[0] = ('Argumentative structure', p[1])
+    elif len(p) == 3:
+        p[0] = ('Argumentative structure', p[1], p[2])
+    elif len(p) == 4:
+        p[0] = ('Argumentative structure', p[1], p[2], p[3])
+    elif len(p) == 5:
+        p[0] = ('Argumentative structure', p[1], p[2], p[3], p[4])
 
 def p_d(p):
     'd:RC F dHelper'
-    #PUT SDT HERE
+    p[0] = ('Final decision', p[1], p[2], p[3])
 
 def p_p(p):
     '''p:pVerbP
@@ -41,15 +48,18 @@ def p_p(p):
         |p pAg
         |S pSup
         |S pAg'''
-    #PUT SDT HERE
+    if len(p) == 2:
+        p[0] = ('Premises', p[1])
+    elif len(p) == 3:
+        p[0] = ('Premises', p[1], p[2])
 
 def p_pVerbP(p):
     'pVerbP:S VP S'
-    #PUT SDT HERE
+    p[0] = ('Sentence with premise verb', p[1], p[2], p[3])
 
 def p_pArt(p):
     'pArt:S RART S'
-    #PUT SDT HERE
+    p[0] = ('Sentence with article reference', p[1], p[2], p[3])
 
 def p_pSup(p):
     '''pSup:RS S
@@ -57,7 +67,7 @@ def p_pSup(p):
         |RS pArt
         |RS pSup
         |RS pAg'''
-    #PUT SDT HERE
+    p[0] = ('Support for an argument', p[1], p[2])
 
 def p_pAg(p):
     '''pAg:RA S
@@ -65,7 +75,7 @@ def p_pAg(p):
         |RA pArt
         |RA pSup
         |RA pAG'''
-    #PUT SDT HERE
+    p[0] = ('Contrast', p[1], p[2])
 
 def p_c(p):
     '''c:RC S
@@ -74,9 +84,11 @@ def p_c(p):
         |RS S
         |RS c
         |RS RC pVerbP
-        |sStar VC S
-    '''
-    #PUT SDT HERE
+        |sStar VC S'''
+    if len(p) == 3:
+        p[0] = ('Conclusion of an argument', p[1], p[2])
+    elif len(p) == 4:
+        p[0] = ('Conclusion of an argument', p[1], p[2], p[3])
 
 #Helpers
 def p_empty(p):
@@ -86,23 +98,35 @@ def p_empty(p):
 def p_aPlus(p):
     '''aPlus:a aPlus
         |a'''
-    #PUT SDT HERE
+    if len(p) == 2:
+        p[0] = ('List of arguments', p[1])
+    if len(p) == 3:
+        p[0] = ('List of arguments', p[1], p[2])
 
 def p_aStar(p):
     '''aStar:a aStar
         |empty'''
-    #PUT SDT HERE
+    if len(p) == 2:
+        p[0] = ('List of arguments', p[1])
+    if len(p) == 3:
+        p[0] = ('List of arguments', p[1], p[2])
 
 def p_pPlus(p):
     '''pPlus:p pPlus
         |p'''
-    #PUT SDT HERE
+    if len(p) == 2:
+        p[0] = ('List of premises', p[1])
+    if len(p) == 3:
+        p[0] = ('List of premises', p[1], p[2])
 
 #missing some things here - wasn't sure whether '.' was a literal or not
 def p_dHelper(p):
     '''dHelper:VC S dHelper
         |VC S'''
-    #PUT SDT HERE
+    if len(p) == 3:
+        p[0] = ('Conclusive verb', p[1], p[2])
+    if len(p) == 4:
+        p[0] = ('Conclusive verb', p[1], p[2], p[3])
 
 #Error rule for syntax errors
 def p_error(p):
