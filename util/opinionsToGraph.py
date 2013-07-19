@@ -1,5 +1,6 @@
-import re, nltk
+import re, nltk, os
 from nltk.tokenize import punkt
+import linguistics as ling
 
 def getNodes(filename, group=0):
     """
@@ -16,7 +17,8 @@ def getNodes(filename, group=0):
         line = line.strip()
         if re.match('[0-9]+ of 100 DOCUMENTS', line): #Matches title of a new brief
             if nodeName is not '':
-                nodes.append({"name":nodeName,"group":group,"text":caseText.replace(u"\uFFFD\uFFFD\uFFFD", u"\u2029")})
+                #nodes.append({"name":nodeName,"group":group,"text":caseText.replace(u"\uFFFD\uFFFD\uFFFD", u"\u2029")})
+                nodes.append({"name":nodeName,"group":group,"text":caseText.replace(u"\uFFFD", "")})
             caseText = ''
             title = True
             continue
@@ -116,6 +118,18 @@ def getContext(allNodes, links):
                             i += 1
                         print 'NEXT SENTENCE: ' + nextSent
 
+def getSentencesWithWord(allNodes, noun):
+    trainer = punkt.PunktSentenceTokenizer()
+    trainer.train("data/real_estate.txt") #Sentence fragmenter trained on real_estate (arbitrarily)
+    sentences = []
+    for node in allNodes:
+        name = node.get("name")
+        tokens = trainer.tokenize(node.get("text"))
+        for token in tokens:
+            if noun in token:
+                sentences.append(token)
+    return sentences
+
 def getConclusions(allNodes, links): 
     trainer = nltk.tokenize.punkt.PunktSentenceTokenizer()
     trainer.train("data/real_estate.txt") #Sentence fragmenter trained on real_estate (arbitrarily)
@@ -140,7 +154,7 @@ def getDecisions(allNodes, links):
                 print str(srcIndex) + ':\t(+)\t' + str(sentence)
 
 if __name__ == "__main__":
-    import argparse, json, os
+    import argparse, json
     parser = argparse.ArgumentParser(description='Get links from a file.')
     parser.add_argument('f', metavar='filename', action='store', help='Directory of files to parse (LexisNexis format)')
     args = parser.parse_args()
@@ -148,6 +162,7 @@ if __name__ == "__main__":
     for aFile,color in zip(os.listdir(args.f),range(0,len(os.listdir(args.f)))):
         nodes += getNodes(args.f + aFile,color)
     (allNodes, links) = getAllNodesAndLinks(nodes)
-    with open('opinions.json', 'w') as out:
-        out.write(json.dumps({"nodes":allNodes,"links":links}))
+    #with open('opinions.json', 'w') as out:
+    #    out.write(json.dumps({"nodes":allNodes,"links":links}))
+    print getSentencesWithWord(nodes, "court")
 
