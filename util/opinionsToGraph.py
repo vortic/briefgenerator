@@ -165,4 +165,3 @@ if __name__ == "__main__":
     #with open('opinions.json', 'w') as out:
     #    out.write(json.dumps({"nodes":allNodes,"links":links}))
     print getSentencesWithWord(nodes, "court")
-

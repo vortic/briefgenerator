@@ -1,4 +1,4 @@
-import os
+import os, re
 import opinionsToGraph
 from nltk.tree import *
 from nltk.draw import tree
@@ -15,6 +15,22 @@ def getSubject(sentence):
             if subtree.right_sibling() and subtree.right_sibling().node == 'VP':
                 print subtree
                 print subtree.right_sibling()
+    pTree.draw()
+
+def getAction(sentence, noun):
+    treeString = getParseTree(sentence)
+    pTree = ParentedTree.convert(treeString)
+    np,vp = None,None
+    print sentence
+    for subtree in pTree.subtrees():
+        if subtree.node == 'NP' and noun in str(subtree):
+            np = subtree
+    for subtree in pTree.subtrees():
+        if subtree.left_sibling() and subtree.left_sibling() == np:
+            vp = subtree
+    for subtree in vp.subtrees():
+        if subtree.parent() == vp and subtree.parent_index() == 0:
+            print subtree
     pTree.draw()
 
 def getParseTree(sentence):
@@ -36,5 +52,6 @@ if __name__ == "__main__":
         for sentence in opinionsToGraph.getSentencesWithWord(nodes, "court"):
             getSubject(sentence)
     #getSubject('I went to the store.')
-    getSubject('In only three of these may the court grant a divorce after proof of recrimination.')
+    #getSubject('In only three of these may the court grant a divorce after proof of recrimination.')
+    getAction('In only three of these may the court grant a divorce after proof of recrimination.', 'court')
     #getSubject('In only three of these may the court, in its discretion, grant a divorce after proof of recrimination.')
