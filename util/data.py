@@ -1,5 +1,4 @@
 import nltk, re
-import opinionsToGraph as otg
 
 def getGoogleCites(caseName):
     import urllib2, HTMLParser
@@ -21,10 +20,19 @@ def getGoogleCites(caseName):
         return allLinks[0], allNumCites[0] #Assuming the first link is the relevant one, also assuming it was cited
     def fixCite(citation):
         """
-        WRITEME
         Only get one, full sentence out of the cite
         """
-        return citation
+        citation = HTMLParser.HTMLParser().unescape(citation)
+        sentenceRegex = r'([A-Z].*?\.)'
+        finalCitation = ''
+        for result in re.finditer(sentenceRegex, citation):
+            for sentence in result.groups():
+                if len(sentence) > len(finalCitation): #There should only be one "real" sentence
+                    finalCitation = sentence
+        if finalCitation == '':
+            return citation + '.'
+        else:
+            return finalCitation
     urlNum, numCites = getURL()
     url = 'http://scholar.google.com/scholar_case?about=' + urlNum
     headers = { 'User-Agent' : 'Mozilla/5.0' }
