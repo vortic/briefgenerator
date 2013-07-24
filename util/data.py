@@ -29,8 +29,10 @@ def getGoogleCites(caseName):
             for sentence in result.groups():
                 if len(sentence) > len(finalCitation): #There should only be one "real" sentence
                     finalCitation = sentence
-        if finalCitation == '':
+        if finalCitation == '' and citation[-1] != '.':
             return citation + '.'
+        elif finalCitation == '':
+            return citation
         else:
             return finalCitation
     urlNum, numCites = getURL()
@@ -49,4 +51,5 @@ def getGoogleCites(caseName):
     return cites
 
 if __name__ == "__main__":
-    print getGoogleCites('In re Marriage of Shaughnessy')
+    #print getGoogleCites('In re Marriage of Shaughnessy')
+    print getGoogleCites('179 Cal. App. 3d 1071')
