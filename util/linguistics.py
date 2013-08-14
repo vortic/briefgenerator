@@ -1,7 +1,9 @@
-import os, re
-import opinionsToGraph
+import sys, os, re
+import opinionsToGraph as otg
+from subprocess import *
 from nltk.tree import *
 from nltk.draw import tree
+from nltk.stem.porter import PorterStemmer
 
 draw = False
 
@@ -39,29 +41,60 @@ def getAction(sentence, noun):
     if draw:
         pTree.draw()
 
-def getParseTree(sentence):
-    with open('tmp/parseTreeInput.txt', 'w') as out:
-        out.write(sentence)
-    os.system("java -Xmx1024m -jar lib/berkeleyParser.jar -gr lib/eng_sm6.gr -inputFile tmp/parseTreeInput.txt\
-    -outputFile tmp/parseTreeOutput.txt")
-    ret = ''
-    with open('tmp/parseTreeOutput.txt','r') as f:
-        ret = Tree(f.read())
-    return ret
+def startProcess(cmdString):
+    cmd = Popen(cmdString, shell=True)
+    #cmd = pexpect.spawn(cmdString)
+    #cmd.logfile = sys.stdout
+    return cmd
+
+def getParseTree(parser, sentence):
+    #stdoutdata, stderrdata = parser.communicate(sentence)
+    import sys
+    print sentence
+    parser.stdin.write(sentence + '\n')
+    parser.stdin.flush()
+    while True:
+        line = parser.stdout.readline()
+        if line != '':
+            print line.rstrip()
+        else:
+            break
+    #return Tree(parser.stdout.read())
+
+def getRoleLabels(sentence):
+    with open("tmp/labeler_input.txt", "w") as text_file:
+        text_file.write(sentence)
+    cmd = "./lib/ASRL/senna/senna -path lib/ASRL/senna/ -srl < tmp/labeler_input.txt > tmp/labeler_output.txt"
+    os.system(cmd)
+    sennaOut = None
+    with open("tmp/labeler_output.txt", "r") as text_file:
+        sennaOut = text_file.read()
+    sennaOut = '\n' + sennaOut #Appending a newline to the beginning to make the next regex easier
+    #print sennaOut
+    verbExtractor = r"\n\s*.*?\s+([-a-zA-Z]*?)\s+"
+    allSrlVerbs = []
+    stemmer = PorterStemmer()
+    for result in re.finditer(verbExtractor, sennaOut):
+        for srlVerb in result.groups():
+            if srlVerb != '-':
+                #print stemmer.stem(srlVerb)
+                allSrlVerbs.append(srlVerb)
+    return allSrlVerbs
 
 if __name__ == "__main__":
-    realSentences = False
-    if realSentences:
-        nodes = []
-        for aFile,color in zip(os.listdir('data/'),range(0,len(os.listdir('data/')))):
-            nodes += opinionsToGraph.getNodes('data/'+aFile,color)
-        for sentence in opinionsToGraph.getSentencesWithWord(nodes, "court"):
-            getSubject(sentence)
+    from collections import Counter
+    import data
     testSet = [u'The parties agreed that the wife would receive the first $214,000 from the sale of the family residence, receipt of which would not constitute a change of circumstances for modification of spousal support.', "It makes no more sense to reduce wife's spousal support because she received her rightful share of the community property than it would to increase wife's spousal support because husband received his rightful share of the community property.", 'In Rabkin, the contested income took the form of $1,800 mortgage payments derived from the sale of the family residence which "constituted the single major asset awarded to wife as her one-half share of the community property."', "The court noted that, in any event, because the parties' agreement expressly provided that the sale of the residence would not constitute a change in circumstances justifying a reduction in support, the trial court's reliance on the sale in ordering a reduction was improper.", "We have concluded that none of these factors furnished a proper basis for the trial court's $250 per month reduction in wife's permanent spousal support.", 'The agreement provided for spousal support amounts established in contemplation of a prompt sale of the family residence.', 'The parties may also agree, as part of a support provision, that specified occurrences will or will not constitute the requisite change of circumstances to allow subsequent modification of that provision.', 'The trial court then reduced her spousal support based in part on the income she was receiving from the note.']
+    #testSet = ['I walk the dog.']
+    #labeler = startProcess("./lib/ASRL/senna/senna -path lib/ASRL/senna/ -srl -verbose")
+    #labeler = startProcess("./lib/ASRL/senna/senna -path lib/ASRL/senna/ -srl")
+    #for test in testSet:
+    #    getRoleLabels(test)
+    nodes = otg.getNodes('data/spousal_support.txt')
+    srlCount = Counter()
+    for node in nodes:
+        print data.getGoogleCites(node.get('name'))
+    """parser = startProcess("java -Xmx1024m -jar lib/berkeleyParser.jar -gr lib/eng_sm6.gr")
     for test in testSet:
-        getAction(test, getSubject(test))
-    #getSubject('I went to the store.')
-    #getSubject('In only three of these may the court grant a divorce after proof of recrimination.')
-    #getAction('In only three of these may the court grant a divorce after proof of recrimination.', 'court')
-    #getAction('The trial court then reduced her spousal support based in part on the income she was receiving from the note.', 'court')
-    #getSubject('In only three of these may the court, in its discretion, grant a divorce after proof of recrimination.')
+        print getParseTree(parser, test)
+    print getParseTree(parser, testSet[0])"""

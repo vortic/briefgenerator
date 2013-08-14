@@ -1,12 +1,10 @@
-import ply.yacc as yacc
-
 """
 http://www.cs.kuleuven.be/groups/liir/publication_files/ICAIL09-final-withBib.pdf
 """
 
 #Terminals
 tokens = (
-    'N','S','RC','RS','RA','RART','VP','F'
+    'N','S','RC','RS','RA','RART','VP','VC','F','PERIOD'
 )
 
 t_RC = r'[tT]herefore|[tT]hus'
@@ -16,18 +14,19 @@ t_RART = r'\d+\s+?Cal\.\s?[a-zA-Z0-9\.]*?\s+?\d+'
 t_VP = r'[nN]ote|[rR]ecall|[sS]tate'
 t_VC = r'[rR]eject|[dD]ismiss|[dD]eclare'
 t_F = r'[cC]ourt|[jJ]ury|[cC]ommission'
+t_PERIOD = r'\.'
 
 #Nonterminals
 def p_t(p):
-    't:aPlus d'
+    't : aPlus d'
     p[0] = ('General structure', p[1], p[2])
 
 def p_a(p):
-    '''a:aPlus c
-        |aStar c N pPlus
-        |c N S
-        |aStar S RC c
-        |pPlus'''
+    '''a : aPlus c
+        | aStar c N pPlus
+        | c N S
+        | aStar S RC c
+        | pPlus'''
     if len(p) == 2:
         p[0] = ('Argumentative structure', p[1])
     elif len(p) == 3:
@@ -38,53 +37,53 @@ def p_a(p):
         p[0] = ('Argumentative structure', p[1], p[2], p[3], p[4])
 
 def p_d(p):
-    'd:RC F dHelper'
+    'd : RC F dHelper'
     p[0] = ('Final decision', p[1], p[2], p[3])
 
 def p_p(p):
-    '''p:pVerbP
-        |pArt
-        |p pSup
-        |p pAg
-        |S pSup
-        |S pAg'''
+    '''p : pVerbP
+        | pArt
+        | p pSup
+        | p pAg
+        | S pSup
+        | S pAg'''
     if len(p) == 2:
         p[0] = ('Premises', p[1])
     elif len(p) == 3:
         p[0] = ('Premises', p[1], p[2])
 
 def p_pVerbP(p):
-    'pVerbP:S VP S'
+    'pVerbP : S VP S'
     p[0] = ('Sentence with premise verb', p[1], p[2], p[3])
 
 def p_pArt(p):
-    'pArt:S RART S'
+    'pArt : S RART S'
     p[0] = ('Sentence with article reference', p[1], p[2], p[3])
 
 def p_pSup(p):
-    '''pSup:RS S
-        |RS pVerbP
-        |RS pArt
-        |RS pSup
-        |RS pAg'''
+    '''pSup : RS S
+        | RS pVerbP
+        | RS pArt
+        | RS pSup
+        | RS pAg'''
     p[0] = ('Support for an argument', p[1], p[2])
 
 def p_pAg(p):
-    '''pAg:RA S
-        |RA pVerbP
-        |RA pArt
-        |RA pSup
-        |RA pAG'''
+    '''pAg : RA S
+        | RA pVerbP
+        | RA pArt
+        | RA pSup
+        | RA pAg'''
     p[0] = ('Contrast', p[1], p[2])
 
 def p_c(p):
-    '''c:RC S
-        |RC c
-        |RC RC pVerbP
-        |RS S
-        |RS c
-        |RS RC pVerbP
-        |sStar VC S'''
+    '''c : RC S
+        | RC c
+        | RC RC pVerbP
+        | RS S
+        | RS c
+        | RS RC pVerbP
+        | sStar VC S'''
     if len(p) == 3:
         p[0] = ('Conclusion of an argument', p[1], p[2])
     elif len(p) == 4:
@@ -92,37 +91,48 @@ def p_c(p):
 
 #Helpers
 def p_empty(p):
-    'empty:'
+    'empty :'
     pass
 
 def p_aPlus(p):
-    '''aPlus:a aPlus
-        |a'''
+    '''aPlus : a aPlus
+        | a'''
     if len(p) == 2:
         p[0] = ('List of arguments', p[1])
     if len(p) == 3:
         p[0] = ('List of arguments', p[1], p[2])
 
 def p_aStar(p):
-    '''aStar:a aStar
-        |empty'''
+    '''aStar : a aStar
+        | empty'''
     if len(p) == 2:
         p[0] = ('List of arguments', p[1])
     if len(p) == 3:
         p[0] = ('List of arguments', p[1], p[2])
 
+def p_sStar(p):
+    '''sStar : S sStar
+        | empty'''
+    if len(p) == 2:
+        p[0] = ('List of sentences', p[1])
+    if len(p) == 3:
+        p[0] = ('List of sentences', p[1], p[2])
+
 def p_pPlus(p):
-    '''pPlus:p pPlus
-        |p'''
+    '''pPlus : p pPlus
+        | p'''
     if len(p) == 2:
         p[0] = ('List of premises', p[1])
     if len(p) == 3:
         p[0] = ('List of premises', p[1], p[2])
 
-#missing some things here - wasn't sure whether '.' was a literal or not
 def p_dHelper(p):
-    '''dHelper:VC S dHelper
-        |VC S'''
+    '''dHelper : VC S dHelper
+        | VC S
+        | PERIOD dHelper
+        | PERIOD'''
+    if len(p) == 2:
+        p[0] = ('Conclusive verb', p[1])
     if len(p) == 3:
         p[0] = ('Conclusive verb', p[1], p[2])
     if len(p) == 4:
@@ -132,4 +142,13 @@ def p_dHelper(p):
 def p_error(p):
     print "Syntax error in input!"
 
-parser = yacc.yacc()
+if __name__ == "__main__":
+    import os
+    import ply.yacc as yacc
+    import opinionsToGraph as otg
+    yacc.yacc()
+    nodes = []
+    for aFile in os.listdir('../data/'):
+        nodes += otg.getNodes('../data/' + aFile)
+    while 1:
+        yacc.parse(nodes[0].get('text'))
