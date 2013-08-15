@@ -17,7 +17,7 @@ def getGoogleURL(caseName):
     header = getHeader()
     req = urllib2.Request(url, None, header)
     html = urllib2.urlopen(req).read()
-    urlRegex = r'scholar_case\?about=([0-9]+)'
+    urlRegex = r'scholar_case\?case=([0-9]+)'
     allLinks = []
     for result in re.finditer(urlRegex, html):
         for link in result.groups():
@@ -51,21 +51,35 @@ def getGoogleCites(caseName):
             return citation
         else:
             return finalCitation
+    def fixTitle(title):
+        ret = title
+        if 'and' in title:
+            split = re.split('and', title)
+            ret = split[0]
+        return ret
     urlNum = getGoogleURL(caseName)
     url = 'http://scholar.google.com/scholar_case?about=' + urlNum
     header = getHeader()
     req = urllib2.Request(url, None, header)
     html = urllib2.urlopen(req).read()
-    raw = nltk.clean_html(html)  
+    raw = nltk.clean_html(html)
+    #print raw
     citeBegin = '.*?has\sbeen\scited\s+'
     #citations = '(.*?)\s-\sin.*?similar\scitations?\s+'*min(6, numCites) #No more than 9 citations are displayed
-    citations = '(.*?)\s-\sin.*?\s\s'*8 #No more than 9 citations are displayed (sometimes 8)
+    citations = '(.*?)\s-\sin\s(.*?)\s\s'*8 #No more than 9 citations are displayed (sometimes 8)
     citeRegex = r'' + citeBegin + citations
     cites = []
+    titles = []
+    title = False
     for result in re.finditer(citeRegex, raw):
         for cite in result.groups():
-            cites.append(fixCite(cite))
-    return cites
+            if title:
+                titles.append(fixTitle(cite))
+                title = False
+            else:
+                cites.append(fixCite(cite))
+                title = True
+    return cites, titles
 
 def getGoogleCase(caseName):
     urlNum = getGoogleURL(caseName)
@@ -77,7 +91,12 @@ def getGoogleCase(caseName):
     print raw
 
 if __name__ == "__main__":
-    #for item in getGoogleCites('224 Cal. App. 3d 885'):
-    #    print item
+    cites, titles = getGoogleCites('224 Cal. App. 3d 885')
+    for cite, title in zip(cites, titles):
+        print
+        if re.match('.*\d.*', title):
+            getGoogleCase(title)
+        else:
+            print 'failed on ' + title
     #print getGoogleCites('179 Cal. App. 3d 1071')
-    getGoogleCase('224 Cal. App. 3d 885')
+    #getGoogleCase('224 Cal. App. 3d 885')
