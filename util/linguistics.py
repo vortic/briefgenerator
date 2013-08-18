@@ -43,14 +43,21 @@ def getAction(sentence, noun):
     if draw:
         pTree.draw()
 
-def startProcess(cmdString):
-    #cmd = Popen(cmdString, shell=True)
+def startProcess(cmdString, log=False):
     cmd = pexpect.spawn(cmdString)
-    cmd.logfile = open("tmp/sennalog", "w")
-    #cmd.logfile = sys.stdout
+    if log:
+        cmd.logfile = open("tmp/sennalog", "w")
     return cmd
 
+def startSRL():
+    labeler = startProcess("./lib/ASRL/senna/senna -path lib/ASRL/senna/ -srl -verbose")
+    labeler.expect('\[ready\]\r\n')
+    return labeler
+
 def getParseTree(parser, sentence):
+    """
+    Start the parser with Popen for this function
+    """
     #stdoutdata, stderrdata = parser.communicate(sentence)
     import sys
     print sentence
@@ -64,16 +71,7 @@ def getParseTree(parser, sentence):
             break
     #return Tree(parser.stdout.read())
 
-def getRoleLabels(sentence, stem=True):
-    with open("tmp/labeler_input.txt", "w") as text_file:
-        text_file.write(sentence)
-    cmd = "./lib/ASRL/senna/senna -path lib/ASRL/senna/ -srl < tmp/labeler_input.txt > tmp/labeler_output.txt"
-    os.system(cmd)
-    sennaOut = None
-    with open("tmp/labeler_output.txt", "r") as text_file:
-        sennaOut = text_file.read()
-    sennaOut = '\n' + sennaOut #Appending a newline to the beginning to make the next regex easier
-    #print sennaOut
+def sennaToRoleLabels(sennaOut, stem=True):
     verbExtractor = r"\n\s*.*?\s+([-a-zA-Z]*?)\s+"
     allSrlVerbs = []
     stemmer = PorterStemmer()
@@ -84,13 +82,16 @@ def getRoleLabels(sentence, stem=True):
                     allSrlVerbs.append(stemmer.stem(srlVerb))
                 else:
                     allSrlVerbs.append(srlVerb)
+    print allSrlVerbs 
     return allSrlVerbs
 
-def getRoleLabelsPexpect(senna, sentence):
+def getRoleLabels(senna, sentence):
+    print sentence
     senna.sendline(sentence)
     senna.expect('\r\n\r\n')
+    return sennaToRoleLabels(senna.before)
 
-def srlCount(cases):
+def srlCount(labeler, cases):
     from collections import Counter
     srlCount = Counter()
     trainer = nltk.tokenize.punkt.PunktSentenceTokenizer()
@@ -98,33 +99,30 @@ def srlCount(cases):
     for case in cases:
         tokens = trainer.tokenize(case)
         for token in tokens:
-            roleLabels = getRoleLabels(token)
+            roleLabels = getRoleLabels(labeler, token)
             for role in roleLabels:
                 srlCount[role] = srlCount[role] + 1
-    print srlCount
+    return srlCount
 
 if __name__ == "__main__":
     import data
     testSet = [u'The parties agreed that the wife would receive the first $214,000 from the sale of the family residence, receipt of which would not constitute a change of circumstances for modification of spousal support.', "It makes no more sense to reduce wife's spousal support because she received her rightful share of the community property than it would to increase wife's spousal support because husband received his rightful share of the community property.", 'In Rabkin, the contested income took the form of $1,800 mortgage payments derived from the sale of the family residence which "constituted the single major asset awarded to wife as her one-half share of the community property."', "The court noted that, in any event, because the parties' agreement expressly provided that the sale of the residence would not constitute a change in circumstances justifying a reduction in support, the trial court's reliance on the sale in ordering a reduction was improper.", "We have concluded that none of these factors furnished a proper basis for the trial court's $250 per month reduction in wife's permanent spousal support.", 'The agreement provided for spousal support amounts established in contemplation of a prompt sale of the family residence.', 'The parties may also agree, as part of a support provision, that specified occurrences will or will not constitute the requisite change of circumstances to allow subsequent modification of that provision.', 'The trial court then reduced her spousal support based in part on the income she was receiving from the note.']
     #testSet = ['I walk the dog.']
-    labeler = startProcess("./lib/ASRL/senna/senna -path lib/ASRL/senna/ -srl -verbose")
-    labeler.expect('\[ready\]\r\n')
-    #labeler = startProcess("./lib/ASRL/senna/senna -path lib/ASRL/senna/ -srl")
+    labeler = startSRL()
     for test in testSet:
-        getRoleLabelsPexpect(labeler, test)
-    labeler.close()
+        getRoleLabels(labeler, test)
     """
     nodes = otg.getNodes('data/spousal_support.txt')
     #for node in nodes:
     cites, titles = data.getGoogleCites(nodes[0].get('name'))
     titles = set(titles)
-    print titles
     cases = []
     for title in titles:
         cases.append(data.getGoogleCase(title))
-    srlCount(cases)
+    print srlCount(labeler, cases)
     """
     """parser = startProcess("java -Xmx1024m -jar lib/berkeleyParser.jar -gr lib/eng_sm6.gr")
     for test in testSet:
         print getParseTree(parser, test)
     print getParseTree(parser, testSet[0])"""
+    labeler.close()
