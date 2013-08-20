@@ -119,15 +119,9 @@ def getRoleLabelsPexpect(senna, sentence):
         return []
 
 def getRoleLabels(tokens, stem=True):
-    def writeCase(tokens):
-        with open('tmp/sennaIn.txt', 'w') as out:
-            for token in tokens:
-                out.write(token + '\n')
     ret = []
     stemmer = PorterStemmer()
-    writeCase(tokens)
-    start30SecProcess("./lib/ASRL/senna/senna -path lib/ASRL/senna/ -srl < tmp/sennaIn.txt > tmp/sennaOut.txt")
-    sennaMatrix = getSennaMatrix()
+    sennaMatrix = getSennaMatrix(tokens)
     for sentence in sennaMatrix:
         for sennaRow in sentence:
             word = sennaRow[0]
@@ -139,13 +133,19 @@ def getRoleLabels(tokens, stem=True):
                     ret.append(verb)
     return ret
 
-def getSennaMatrix():
+def getSennaMatrix(tokens):
+    def writeCase():
+        with open('tmp/sennaIn.txt', 'w') as out:
+            for token in tokens:
+                out.write(token + '\n')
     def cleanSennaOut(sennaRow):
         if '' in sennaRow:
             while '' in sennaRow:
                 sennaRow.remove('')
         return sennaRow
     ret = []
+    writeCase()
+    start30SecProcess("./lib/ASRL/senna/senna -path lib/ASRL/senna/ -srl < tmp/sennaIn.txt > tmp/sennaOut.txt")
     with open('tmp/sennaOut.txt', 'r') as text:
         line = text.readline()
         sentence = []
@@ -161,7 +161,6 @@ def getSennaMatrix():
             sentence = []
             line = text.readline()
     return ret
-            
 
 def srlCount(cases):
     from collections import Counter
@@ -173,10 +172,37 @@ def srlCount(cases):
             print "Something went wrong - the case isn't a string"
             continue
         tokens = trainer.tokenize(case)
-        roleLabels = getRoleLabels(tokens)
+        roleLabels = getRoleLabels(tokens, stem=False)
         for role in roleLabels:
             srlCount[role] = srlCount[role] + 1
     return srlCount
+
+def commonRoles(cases, n=10):
+    from collections import Counter
+    topSRL = srlCount(cases)
+    trainer = nltk.tokenize.punkt.PunktSentenceTokenizer()
+    trainer.train("GoogleCases.txt")
+    roleDict = {}
+    for verb, count in topSRL.most_common(n):
+        roleDict[verb] = []
+    for case in cases:
+        tokens = trainer.tokenize(case)
+        sennaMatrix = getSennaMatrix(tokens)
+        for verb, count in topSRL.most_common(n):
+            print verb
+            thematicRoles = {'A0':[], 'A1':[]}
+            for sentence in sennaMatrix:
+                for sennaRow in sentence:
+                    if sennaRow[1] == verb and 'S-V' in sennaRow:
+                        column = sennaRow.index('S-V')
+                        for sennaRow2 in sentence:
+                            if sennaRow2[column] == 'S-A0':#Acceptor
+                                thematicRoles['A0'].append(sennaRow2[0])
+                            if sennaRow2[column] == 'S-A1':#Accepted
+                                thematicRoles['A1'].append(sennaRow2[0])
+            print thematicRoles
+            roleDict[verb].append(thematicRoles)
+    return roleDict
 
 if __name__ == "__main__":
     import data
@@ -196,7 +222,8 @@ if __name__ == "__main__":
     for title in titles:
         case = data.getGoogleCase(title)
         cases.append(case)
-    print srlCount(cases)
+    #print srlCount(cases)
+    print commonRoles(cases)
     #"""
     """parser = startProcessPopen("java -Xmx1024m -jar lib/berkeleyParser.jar -gr lib/eng_sm6.gr")
     for test in testSet:

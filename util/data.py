@@ -16,7 +16,7 @@ def getGoogleURL(caseName):
     url = 'http://scholar.google.com/scholar?hl=en&q=' + nameAndYear[0].replace(' ', '+') + '&btnG=&as_sdt=4%2C5'
     if len(nameAndYear) > 1:
         url = url + '&as_ylo=' + nameAndYear[1]  + '&as_yhi=' + nameAndYear[1]
-    print url
+    #print 'Getting URL for ' +caseName
     header = getHeader()
     req = urllib2.Request(url, None, header)
     html = urllib2.urlopen(req).read()
