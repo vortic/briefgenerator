@@ -118,23 +118,18 @@ def getRoleLabelsPexpect(senna, sentence):
         print 'Not doing anything.'
         return []
 
-def getRoleLabels(stem=True):
-    def cleanSennaOut(sennaRow):
-        if '' in sennaRow:
-            while '' in sennaRow:
-                sennaRow.remove('')
-        return sennaRow
+def getRoleLabels(tokens, stem=True):
+    def writeCase(tokens):
+        with open('tmp/sennaIn.txt', 'w') as out:
+            for token in tokens:
+                out.write(token + '\n')
     ret = []
     stemmer = PorterStemmer()
-    with open('tmp/sennaOut.txt', 'r') as text:
-        line = None
-        while line != '':
-            line = text.readline()
-            sennaRow = re.split('\s+', line)
-            sennaRow = cleanSennaOut(sennaRow)
-            if len(sennaRow) < 2:
-                continue
-            #print sennaRow
+    writeCase(tokens)
+    start30SecProcess("./lib/ASRL/senna/senna -path lib/ASRL/senna/ -srl < tmp/sennaIn.txt > tmp/sennaOut.txt")
+    sennaMatrix = getSennaMatrix()
+    for sentence in sennaMatrix:
+        for sennaRow in sentence:
             word = sennaRow[0]
             verb = sennaRow[1]
             if verb != '-':
@@ -144,12 +139,32 @@ def getRoleLabels(stem=True):
                     ret.append(verb)
     return ret
 
+def getSennaMatrix():
+    def cleanSennaOut(sennaRow):
+        if '' in sennaRow:
+            while '' in sennaRow:
+                sennaRow.remove('')
+        return sennaRow
+    ret = []
+    with open('tmp/sennaOut.txt', 'r') as text:
+        line = text.readline()
+        sentence = []
+        while line != '':
+            while line != '\n':
+                sennaRow = re.split('\s+', line)
+                sennaRow = cleanSennaOut(sennaRow)
+                if len(sennaRow) > 1:
+                    sentence.append(sennaRow)
+                line = text.readline()
+            if sentence != []:
+                ret.append(sentence)
+            sentence = []
+            line = text.readline()
+    return ret
+            
+
 def srlCount(cases):
     from collections import Counter
-    def writeCase(tokens):
-        with open('tmp/sennaIn.txt', 'w') as out:
-            for token in tokens:
-                out.write(token + '\n')
     srlCount = Counter()
     trainer = nltk.tokenize.punkt.PunktSentenceTokenizer()
     trainer.train("GoogleCases.txt")
@@ -158,9 +173,7 @@ def srlCount(cases):
             print "Something went wrong - the case isn't a string"
             continue
         tokens = trainer.tokenize(case)
-        writeCase(tokens)
-        start30SecProcess("./lib/ASRL/senna/senna -path lib/ASRL/senna/ -srl < tmp/sennaIn.txt > tmp/sennaOut.txt")
-        roleLabels = getRoleLabels()
+        roleLabels = getRoleLabels(tokens)
         for role in roleLabels:
             srlCount[role] = srlCount[role] + 1
     return srlCount
