@@ -4,7 +4,7 @@ def getHeader():
     header = {
         'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language':'en-US;q=0.8,en;q=0.6',
-        'Cookie':'GSP=ID=b4effef103646c45:S=Nb2dHqpsu3vQGp-B; PREF=ID=b4effef103646c45:TM=1376994147:LM=1376994147:S=K6h-KzJXgGaRGGWt; GDSESS=ID=8e6ea0d87b9e9204:TM=1376994168:C=c:IP=98.248.250.16-:S=APGng0s7jMqLpPtO7XVOiAjLMdgkDnaCRQ',
+        'Cookie':'GSP=ID=60d31e480f04ebdf:S=-TE4lNc_ytLPYgkf; PREF=ID=60d31e480f04ebdf:TM=1377067522:LM=1377067522:S=L7-r6fRCxulMQZL9; GDSESS=ID=b9b6980f9002947e:TM=1377067544:C=c:IP=98.248.250.16-:S=APGng0v-hdxF_-ZpYDuMBE3dzmeVp7leMQ',
         'Host':'scholar.google.com',
         'User-Agent':'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/28.0.1500.95 Safari/537.36',
         'X-Chrome-Variations':'CNO1yQEIl7bJAQiptskBCMS2yQEIqYXKAQi3hcoB'

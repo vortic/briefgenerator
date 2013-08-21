@@ -177,32 +177,60 @@ def srlCount(cases):
             srlCount[role] = srlCount[role] + 1
     return srlCount
 
-def commonRoles(cases, n=10):
+def commonRoles(cases, n=50):
+    def getThematicRoles(verb, sennaMatrix):
+        thematicRoles = {'A0':[], 'A1':[]}
+        for sentence in sennaMatrix:
+            for sennaRow in sentence:
+                if sennaRow[1] == verb and 'S-V' in sennaRow:
+                    column = sennaRow.index('S-V')
+                    A0 = []
+                    A1 = []
+                    for sennaRow2 in sentence:
+                        role = sennaRow2[column]
+                        matchingText = sennaRow2[0]
+                        if re.match('[SBIE]-A0', role):#Acceptor
+                            A0.append(matchingText)
+                        if re.match('[SBIE]-A1', role):#Accepted
+                            A1.append(matchingText)
+                    thematicRoles['A0'].append(' '.join(A0))
+                    thematicRoles['A1'].append(' '.join(A1))
+        return thematicRoles
     from collections import Counter
     topSRL = srlCount(cases)
     trainer = nltk.tokenize.punkt.PunktSentenceTokenizer()
     trainer.train("GoogleCases.txt")
     roleDict = {}
     for verb, count in topSRL.most_common(n):
-        roleDict[verb] = []
+        roleDict[(verb, count)] = []
     for case in cases:
         tokens = trainer.tokenize(case)
         sennaMatrix = getSennaMatrix(tokens)
         for verb, count in topSRL.most_common(n):
-            print verb
-            thematicRoles = {'A0':[], 'A1':[]}
-            for sentence in sennaMatrix:
-                for sennaRow in sentence:
-                    if sennaRow[1] == verb and 'S-V' in sennaRow:
-                        column = sennaRow.index('S-V')
-                        for sennaRow2 in sentence:
-                            if sennaRow2[column] == 'S-A0':#Acceptor
-                                thematicRoles['A0'].append(sennaRow2[0])
-                            if sennaRow2[column] == 'S-A1':#Accepted
-                                thematicRoles['A1'].append(sennaRow2[0])
-            print thematicRoles
-            roleDict[verb].append(thematicRoles)
-    return roleDict
+            thematicRoles = getThematicRoles(verb, sennaMatrix)
+            roleDict[(verb, count)].append(thematicRoles)
+    ret = {}
+    for (verb, count), usageList in roleDict.iteritems():
+        ret[verb] = {}
+        ret[verb]['count'] = count
+        ret[verb]['A0'] = Counter()
+        ret[verb]['A1'] = Counter()
+        for usage in usageList:
+            for cite in usage['A0']:
+                ret[verb]['A0'][cite] = ret[verb]['A0'][cite] + 1
+            for cite in usage['A1']:
+                ret[verb]['A1'][cite] = ret[verb]['A1'][cite] + 1
+    return ret
+
+def writeRoleGraph(cases):
+    import json
+    roles = commonRoles(cases)
+    links = [{"source":1,"target":0,"value":1}]#Have to put an edge in or the graph gets mad
+    nodes = []
+    for verb, role in roles.iteritems():
+        nodes.append({"name":verb, "group":0, "A0":str(role['A0']), "A1":str(role['A1']), "count":role['count']})
+    with open('roles.json', 'w') as out:
+        out.write(json.dumps({"nodes":nodes,"links":links}))
 
 if __name__ == "__main__":
     import data
@@ -223,7 +251,8 @@ if __name__ == "__main__":
         case = data.getGoogleCase(title)
         cases.append(case)
     #print srlCount(cases)
-    print commonRoles(cases)
+    #print commonRoles(cases)
+    writeRoleGraph(cases)
     #"""
     """parser = startProcessPopen("java -Xmx1024m -jar lib/berkeleyParser.jar -gr lib/eng_sm6.gr")
     for test in testSet:
