@@ -2,7 +2,8 @@ import sys, os, re
 import opinionsToGraph as otg
 from subprocess import *
 import time
-import pexpect
+#import pexpect
+from collections import Counter
 import nltk
 from nltk.tree import *
 from nltk.draw import tree
@@ -163,7 +164,6 @@ def getSennaMatrix(tokens):
     return ret
 
 def srlCount(cases):
-    from collections import Counter
     srlCount = Counter()
     trainer = nltk.tokenize.punkt.PunktSentenceTokenizer()
     trainer.train("GoogleCases.txt")
@@ -196,7 +196,6 @@ def commonRoles(cases, n=50):
                     thematicRoles['A0'].append(' '.join(A0))
                     thematicRoles['A1'].append(' '.join(A1))
         return thematicRoles
-    from collections import Counter
     topSRL = srlCount(cases)
     trainer = nltk.tokenize.punkt.PunktSentenceTokenizer()
     trainer.train("GoogleCases.txt")
@@ -225,12 +224,27 @@ def commonRoles(cases, n=50):
 def writeRoleGraph(cases):
     import json
     roles = commonRoles(cases)
+    sentences = {}
+    for verb, role in roles.iteritems():
+        sentences[verb] = sorted(generateSentences(verb, role['A0'], role['A1']), key = lambda x: x[1])
+        sentences[verb].reverse()
     links = [{"source":1,"target":0,"value":1}]#Have to put an edge in or the graph gets mad
     nodes = []
     for verb, role in roles.iteritems():
-        nodes.append({"name":verb, "group":0, "A0":str(role['A0']), "A1":str(role['A1']), "count":role['count']})
+        nodes.append({"name":verb, "group":0, "A0":str(role['A0']), "A1":str(role['A1']), "count":role['count'], "sentences":str(sentences[verb])})
     with open('roles.json', 'w') as out:
         out.write(json.dumps({"nodes":nodes,"links":links}))
+
+def generateSentences(verb, acceptors, accepteds, countLowerBound=3, noEmpty=True):
+    allSentences = []
+    for acceptor, acceptorcount in acceptors.iteritems():
+        for accepted, acceptedcount in accepteds.iteritems():
+            if noEmpty and (accepted == '' or acceptor == ''):
+                continue
+            generatedSentence = ' '.join([acceptor, verb, accepted])
+            if acceptorcount >= countLowerBound and acceptedcount >= countLowerBound:
+                allSentences.append((generatedSentence, acceptorcount + acceptedcount))
+    return allSentences
 
 if __name__ == "__main__":
     import data
@@ -242,9 +256,8 @@ if __name__ == "__main__":
         getRoleLabels(labeler, test)
     """
     #"""
-    nodes = otg.getNodes('data/spousal_support.txt')
     #for node in nodes:
-    cites, titles = data.getGoogleCites(nodes[0].get('name'))
+    cites, titles = data.getGoogleCites('139 Cal.App.4th 1225')
     titles = set(titles)
     cases = []
     for title in titles:
@@ -254,6 +267,7 @@ if __name__ == "__main__":
     #print commonRoles(cases)
     writeRoleGraph(cases)
     #"""
+    #generateSentences('walk', Counter({'': 6, 'the court': 5, 'she': 2}), Counter({'the dog': 5, 'the cat': 2}))
     """parser = startProcessPopen("java -Xmx1024m -jar lib/berkeleyParser.jar -gr lib/eng_sm6.gr")
     for test in testSet:
         print getParseTree(parser, test)
