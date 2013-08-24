@@ -1,9 +1,8 @@
 import sys, os, re
 import opinionsToGraph as otg
 import case
-from subprocess import *
+import subprocess
 import time
-#import pexpect
 from collections import Counter
 import nltk
 from nltk.tree import *
@@ -52,10 +51,8 @@ def startProcessPexpect(cmdString, log=True):
         cmd.logfile = open("tmp/log.txt", "w")
     return cmd
 
-def start40SecProcess(cmdString):
-    cmd = Popen(cmdString, shell=True)
-    time.sleep(40)
-    cmd.terminate()
+def startProcess(cmdString):
+    subprocess.check_call(cmdString, shell=True)
     return None
 
 def startSRL():
@@ -147,7 +144,7 @@ def getSennaMatrix(cas):
         return sennaRow
     ret = []
     writeCase()
-    start40SecProcess("./lib/ASRL/senna/senna -path lib/ASRL/senna/ -srl < tmp/sennaIn.txt > tmp/sennaOut.txt")
+    startProcess("./lib/ASRL/senna/senna -path lib/ASRL/senna/ -srl < tmp/sennaIn.txt > tmp/sennaOut.txt")
     with open('tmp/sennaOut.txt', 'r') as text:
         line = text.readline()
         sentence = []
