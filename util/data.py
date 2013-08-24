@@ -1,18 +1,21 @@
 import nltk, re, urllib2
+import case
 
 def getHeader():
     header = {
         'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language':'en-US;q=0.8,en;q=0.6',
-        'Cookie':'GSP=ID=60d31e480f04ebdf:S=-TE4lNc_ytLPYgkf; PREF=ID=60d31e480f04ebdf:TM=1377067522:LM=1377067522:S=L7-r6fRCxulMQZL9; GDSESS=ID=b9b6980f9002947e:TM=1377067544:C=c:IP=98.248.250.16-:S=APGng0v-hdxF_-ZpYDuMBE3dzmeVp7leMQ',
+        'Cookie':'GSP=ID=c6026c8730a9e357:S=5dK65FE5CiLeAa36; GDSESS=ID=f6417464d18ceaa4:TM=1377291185:C=c:IP=136.152.36.169-:S=APGng0tF18dJKBL0gah0t825BbEByceZ8Q; PREF=ID=c6026c8730a9e357:LD=en:CR=2:TM=1377291182:LM=1377291241:S=_3qLRJlMWox_LBi4',
         'Host':'scholar.google.com',
         'User-Agent':'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/28.0.1500.95 Safari/537.36',
         'X-Chrome-Variations':'CNO1yQEIl7bJAQiptskBCMS2yQEIqYXKAQi3hcoB'
     }
     return header
 
-def getGoogleURL(caseName):
-    nameAndYear = caseName.split(', ')
+def getGoogleURL(cas):
+    if re.match('^[0-9]+$', cas.name):
+        return cas.name
+    nameAndYear = cas.name.split(', ')
     url = 'http://scholar.google.com/scholar?hl=en&q=' + nameAndYear[0].replace(' ', '+') + '&btnG=&as_sdt=4%2C5'
     if len(nameAndYear) > 1:
         url = url + '&as_ylo=' + nameAndYear[1]  + '&as_yhi=' + nameAndYear[1]
@@ -28,7 +31,7 @@ def getGoogleURL(caseName):
             allLinks.append(link)
     return allLinks[0] #Assuming the first link is the relevant one, also assuming it was cited
 
-def getGoogleCites(caseName):
+def getGoogleCites(cas):
     import HTMLParser
     def fixCite(citation):
         """
@@ -54,8 +57,7 @@ def getGoogleCites(caseName):
             split = re.split('and', title)
             ret = split[0]
         return ret.strip()
-    urlNum = getGoogleURL(caseName)
-    url = 'http://scholar.google.com/scholar_case?about=' + urlNum
+    url = 'http://scholar.google.com/scholar_case?about=' + cas.googleURL
     header = getHeader()
     req = urllib2.Request(url, None, header)
     html = urllib2.urlopen(req).read()
@@ -78,16 +80,16 @@ def getGoogleCites(caseName):
                 title = True
     return cites, titles
 
-def getGoogleCase(caseName):
+def getGoogleCase(cas):
     def removeHeading(raw):
         headingRemover = re.compile('.*?OPINION(.*)Save\strees\s-\sread', re.DOTALL)
-        for result in re.finditer(headingRemover, raw):
-            for case in result.groups():
-                return case
+        if re.match(headingRemover, raw):
+            for result in re.finditer(headingRemover, raw):
+                for caseText in result.groups():
+                    return caseText
         #Failure: just keep Google's stuff in there
         return raw
-    urlNum = getGoogleURL(caseName)
-    url = 'http://scholar.google.com/scholar_case?case=' + urlNum
+    url = 'http://scholar.google.com/scholar_case?case=' + cas.googleURL
     header = getHeader()
     req = urllib2.Request(url, None, header)
     html = urllib2.urlopen(req).read()
@@ -97,8 +99,34 @@ def getGoogleCase(caseName):
         print "Warning: Could not get " + caseName
     return ret
 
+def getMoreGoogleCites(cas):
+    def getTenLinks(start=0):
+        url = 'http://scholar.google.com/scholar?cites=' + cas.googleURL + \
+              '&as_sdt=2005&sciodt=4,5&hl=en&start=' + str(start)
+        header = getHeader()
+        req = urllib2.Request(url, None, header)
+        html = urllib2.urlopen(req).read()
+        urlRegex = r'scholar_case\?case=([0-9]+)'
+        allLinks = []
+        for result in re.finditer(urlRegex, html):
+            for link in result.groups():
+                allLinks.append(link)
+        return allLinks[1:]
+    allCites = []
+    start = 0
+    getMore = True
+    while getMore:
+        newLinks = getTenLinks(start)
+        if newLinks == []:
+            getMore = False
+        allCites = allCites + newLinks
+        start += 10
+    return allCites
+
 if __name__ == "__main__":
-    cites, titles = getGoogleCites('224 Cal. App. 3d 885')
+    #cites, titles = getGoogleCites('224 Cal. App. 3d 885')
+    cas = case.Case('224 Cal. App. 3d 885')
+    print getMoreGoogleCites(cas)
     """for cite, title in zip(cites, titles):
         print
         if re.match('.*\d.*', title):

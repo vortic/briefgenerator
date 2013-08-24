@@ -1,5 +1,6 @@
 import sys, os, re
 import opinionsToGraph as otg
+import case
 from subprocess import *
 import time
 #import pexpect
@@ -51,9 +52,9 @@ def startProcessPexpect(cmdString, log=True):
         cmd.logfile = open("tmp/log.txt", "w")
     return cmd
 
-def start30SecProcess(cmdString):
+def start40SecProcess(cmdString):
     cmd = Popen(cmdString, shell=True)
-    time.sleep(30)
+    time.sleep(40)
     cmd.terminate()
     return None
 
@@ -119,10 +120,10 @@ def getRoleLabelsPexpect(senna, sentence):
         print 'Not doing anything.'
         return []
 
-def getRoleLabels(tokens, stem=True):
+def getRoleLabels(cas, stem=True):
     ret = []
     stemmer = PorterStemmer()
-    sennaMatrix = getSennaMatrix(tokens)
+    sennaMatrix = cas.sennaMatrix
     for sentence in sennaMatrix:
         for sennaRow in sentence:
             word = sennaRow[0]
@@ -132,12 +133,12 @@ def getRoleLabels(tokens, stem=True):
                     ret.append(stemmer.stem(verb))
                 else:
                     ret.append(verb)
-    return ret
+    return ret 
 
-def getSennaMatrix(tokens):
+def getSennaMatrix(cas):
     def writeCase():
         with open('tmp/sennaIn.txt', 'w') as out:
-            for token in tokens:
+            for token in cas.tokens:
                 out.write(token + '\n')
     def cleanSennaOut(sennaRow):
         if '' in sennaRow:
@@ -146,7 +147,7 @@ def getSennaMatrix(tokens):
         return sennaRow
     ret = []
     writeCase()
-    start30SecProcess("./lib/ASRL/senna/senna -path lib/ASRL/senna/ -srl < tmp/sennaIn.txt > tmp/sennaOut.txt")
+    start40SecProcess("./lib/ASRL/senna/senna -path lib/ASRL/senna/ -srl < tmp/sennaIn.txt > tmp/sennaOut.txt")
     with open('tmp/sennaOut.txt', 'r') as text:
         line = text.readline()
         sentence = []
@@ -165,14 +166,8 @@ def getSennaMatrix(tokens):
 
 def srlCount(cases):
     srlCount = Counter()
-    trainer = nltk.tokenize.punkt.PunktSentenceTokenizer()
-    trainer.train("GoogleCases.txt")
-    for case in cases:
-        if type(case) != type(''):
-            print "Something went wrong - the case isn't a string"
-            continue
-        tokens = trainer.tokenize(case)
-        roleLabels = getRoleLabels(tokens, stem=False)
+    for cas in cases:
+        roleLabels = getRoleLabels(cas, stem=False)
         for role in roleLabels:
             srlCount[role] = srlCount[role] + 1
     return srlCount
@@ -197,14 +192,11 @@ def commonRoles(cases, n=50):
                     thematicRoles['A1'].append(' '.join(A1))
         return thematicRoles
     topSRL = srlCount(cases)
-    trainer = nltk.tokenize.punkt.PunktSentenceTokenizer()
-    trainer.train("GoogleCases.txt")
     roleDict = {}
     for verb, count in topSRL.most_common(n):
         roleDict[(verb, count)] = []
-    for case in cases:
-        tokens = trainer.tokenize(case)
-        sennaMatrix = getSennaMatrix(tokens)
+    for cas in cases:
+        sennaMatrix = cas.sennaMatrix
         for verb, count in topSRL.most_common(n):
             thematicRoles = getThematicRoles(verb, sennaMatrix)
             roleDict[(verb, count)].append(thematicRoles)
@@ -226,7 +218,8 @@ def writeRoleGraph(cases):
     roles = commonRoles(cases)
     sentences = {}
     for verb, role in roles.iteritems():
-        sentences[verb] = sorted(generateSentences(verb, role['A0'], role['A1']), key = lambda x: x[1])
+        sentences[verb] = sorted(generateSentences(verb, role['A0'], role['A1']),
+                                 key = lambda x: x[1] + x[2])
         sentences[verb].reverse()
     links = [{"source":1,"target":0,"value":1}]#Have to put an edge in or the graph gets mad
     nodes = []
@@ -234,6 +227,19 @@ def writeRoleGraph(cases):
         nodes.append({"name":verb, "group":0, "A0":str(role['A0']), "A1":str(role['A1']), "count":role['count'], "sentences":str(sentences[verb])})
     with open('roles.json', 'w') as out:
         out.write(json.dumps({"nodes":nodes,"links":links}))
+
+def summarizeCase(citingCases):
+    roles = commonRoles(citingCases)
+    sentences = {}
+    summary = []
+    for verb, role in roles.iteritems():
+        sentences[verb] = sorted(generateSentences(verb, role['A0'], role['A1']),
+                                 key = lambda x: x[1] + x[2])
+        sentences[verb].reverse()
+    for verb, role in roles.iteritems():
+        if len(sentences[verb]) > 0:
+            summary.append(sentences[verb][0])
+    return summary
 
 def generateSentences(verb, acceptors, accepteds, countLowerBound=3, noEmpty=True):
     allSentences = []
@@ -243,7 +249,7 @@ def generateSentences(verb, acceptors, accepteds, countLowerBound=3, noEmpty=Tru
                 continue
             generatedSentence = ' '.join([acceptor, verb, accepted])
             if acceptorcount >= countLowerBound and acceptedcount >= countLowerBound:
-                allSentences.append((generatedSentence, acceptorcount + acceptedcount))
+                allSentences.append((generatedSentence, acceptorcount, acceptedcount))
     return allSentences
 
 if __name__ == "__main__":
@@ -257,15 +263,18 @@ if __name__ == "__main__":
     """
     #"""
     #for node in nodes:
-    cites, titles = data.getGoogleCites('139 Cal.App.4th 1225')
+    #cites, titles = data.getGoogleCites('139 Cal.App.4th 1225')
+    originalCase = case.Case('139 Cal.App.4th 1225')
+    titles = data.getMoreGoogleCites(originalCase)
     titles = set(titles)
     cases = []
     for title in titles:
-        case = data.getGoogleCase(title)
-        cases.append(case)
+        cas = case.Case(title)
+        cases.append(cas)
     #print srlCount(cases)
     #print commonRoles(cases)
-    writeRoleGraph(cases)
+    #writeRoleGraph(cases)
+    print summarizeCase(cases)
     #"""
     #generateSentences('walk', Counter({'': 6, 'the court': 5, 'she': 2}), Counter({'the dog': 5, 'the cat': 2}))
     """parser = startProcessPopen("java -Xmx1024m -jar lib/berkeleyParser.jar -gr lib/eng_sm6.gr")
