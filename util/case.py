@@ -1,7 +1,7 @@
 import data, linguistics, nltk
 
 class Case:
-    def __init__(self, name):
+    def __init__(self, name, senna=True, importance=1):
         if name.isdigit():
             self.name = name
             self.googleURL = name
@@ -12,4 +12,6 @@ class Case:
         trainer = nltk.tokenize.punkt.PunktSentenceTokenizer()
         trainer.train("GoogleCases.txt")
         self.tokens = trainer.tokenize(self.string)
-        self.sennaMatrix = linguistics.getSennaMatrix(self)
+        if senna:
+            self.sennaMatrix = linguistics.getSennaMatrix(self)
+        self.importance = importance

@@ -45,20 +45,9 @@ def getAction(sentence, noun):
     if draw:
         pTree.draw()
 
-def startProcessPexpect(cmdString, log=True):
-    cmd = pexpect.spawn(cmdString)
-    if log:
-        cmd.logfile = open("tmp/log.txt", "w")
-    return cmd
-
 def startProcess(cmdString):
     subprocess.check_call(cmdString, shell=True)
     return None
-
-def startSRL():
-    labeler = startProcessPexpect("./lib/ASRL/senna/senna -path lib/ASRL/senna/ -srl -verbose")
-    labeler.expect('\[ready\]\r\n')
-    return labeler
 
 def getParseTree(parser, sentence):
     """
@@ -75,47 +64,6 @@ def getParseTree(parser, sentence):
         else:
             break
     #return Tree(parser.stdout.read())
-
-def sennaToRoleLabels(sennaOut, stem=True):
-    """
-    Don't use this one anymore
-    """
-    verbExtractor = r"\n\s*.*?\s+([-a-zA-Z]*?)\s+"
-    allSrlVerbs = []
-    stemmer = PorterStemmer()
-    for result in re.finditer(verbExtractor, sennaOut):
-        for srlVerb in result.groups():
-            if srlVerb != '-':
-                if stem:
-                    allSrlVerbs.append(stemmer.stem(srlVerb))
-                else:
-                    allSrlVerbs.append(srlVerb)
-    print allSrlVerbs 
-    return allSrlVerbs
-
-def getRoleLabelsPexpect(senna, sentence):
-    """
-    Don't use this one anymore
-    """
-    #print sentence
-    def cleanSentence(sentence):
-        toBeRemoved = r'[^a-zA-Z0-9,\.\s]'
-        ret = re.sub(toBeRemoved, '', sentence)
-        ret = ret.strip()
-        ret = ret.replace('\n',' ')
-        #print 'clean sentence'
-        #print ret
-        return ret
-    sentence = cleanSentence(sentence)
-    if len(sentence) > 10 and '\n' not in sentence:
-        senna.sendline(sentence)
-        time.sleep(2)
-        senna.expect('\r\n\r\n')
-        time.sleep(2)
-        return sennaToRoleLabels(senna.before)
-    else:
-        print 'Not doing anything.'
-        return []
 
 def getRoleLabels(cas, stem=True):
     ret = []
@@ -161,20 +109,25 @@ def getSennaMatrix(cas):
             line = text.readline()
     return ret
 
-def srlCount(cases):
+def srlCount(cases, stem=True):
     srlCount = Counter()
     for cas in cases:
-        roleLabels = getRoleLabels(cas, stem=False)
+        roleLabels = getRoleLabels(cas, stem=True)
         for role in roleLabels:
             srlCount[role] = srlCount[role] + 1
     return srlCount
 
-def commonRoles(cases, n=50):
-    def getThematicRoles(verb, sennaMatrix):
+def commonRoles(cases, n=50, stem=True):
+    stemmer = PorterStemmer()
+    def getThematicRoles(verb, cas):
+        if stem:
+            verb = stemmer.stem(verb)
+        sennaMatrix = cas.sennaMatrix
         thematicRoles = {'A0':[], 'A1':[]}
         for sentence in sennaMatrix:
             for sennaRow in sentence:
-                if sennaRow[1] == verb and 'S-V' in sennaRow:
+                if ((stem and stemmer.stem(sennaRow[1]) == verb) or\
+                    (not stem and sennaRow[1] == verb)) and 'S-V' in sennaRow:
                     column = sennaRow.index('S-V')
                     A0 = []
                     A1 = []
@@ -185,17 +138,16 @@ def commonRoles(cases, n=50):
                             A0.append(matchingText)
                         if re.match('[SBIE]-A1', role):#Accepted
                             A1.append(matchingText)
-                    thematicRoles['A0'].append(' '.join(A0))
-                    thematicRoles['A1'].append(' '.join(A1))
+                    thematicRoles['A0'].append(' '.join(A0)*cas.importance)
+                    thematicRoles['A1'].append(' '.join(A1)*cas.importance)
         return thematicRoles
-    topSRL = srlCount(cases)
+    topSRL = srlCount(cases, stem=True)
     roleDict = {}
     for verb, count in topSRL.most_common(n):
         roleDict[(verb, count)] = []
     for cas in cases:
-        sennaMatrix = cas.sennaMatrix
         for verb, count in topSRL.most_common(n):
-            thematicRoles = getThematicRoles(verb, sennaMatrix)
+            thematicRoles = getThematicRoles(verb, cas)
             roleDict[(verb, count)].append(thematicRoles)
     ret = {}
     for (verb, count), usageList in roleDict.iteritems():
@@ -249,30 +201,78 @@ def generateSentences(verb, acceptors, accepteds, countLowerBound=3, noEmpty=Tru
                 allSentences.append((generatedSentence, acceptorcount, acceptedcount))
     return allSentences
 
+def resolveAnaphora(cas):
+    def makeJavarapInput():
+        with open('tmp/javarapIn.txt', 'w') as f:
+            for token in cas.tokens:
+                f.write(token + '\n\n')
+    makeJavarapInput()
+    os.system('java -Xmx1024m -jar lib/JavaRAP_1.13/AnaphoraResolution.jar tmp/javarapIn.txt > tmp/javarapOut.txt')
+
+def findWhatIsAskedFor(cas):
+    def writeSentence(sentence):
+        with open('tmp/sennaIn.txt', 'w') as out:
+            out.write(sentence + '\n')
+    def cleanSennaOut(sennaRow):
+        if '' in sennaRow:
+            while '' in sennaRow:
+                sennaRow.remove('')
+        return sennaRow
+    supportSentences = []
+    for token in cas.tokens:
+        if 'support' in token and len(supportSentences) == 0:
+            allLines = []
+            for result in re.finditer(r'.*\n(.*)', token):
+                for oneLine in result.groups():
+                    allLines.append(oneLine)
+            supportSentences.append(allLines[-1])
+    print supportSentences[0]
+    writeSentence(supportSentences[0])
+    startProcess("./lib/ASRL/senna/senna -path lib/ASRL/senna/ -srl < tmp/sennaIn.txt > tmp/sennaOut.txt")
+    ret = []
+    with open('tmp/sennaOut.txt', 'r') as text: 
+        line = text.readline()
+        sentence = []
+        while line != '':
+            while line != '\n':
+                sennaRow = re.split('\s+', line)
+                sennaRow = cleanSennaOut(sennaRow)
+                if len(sennaRow) > 1:
+                    sentence.append(sennaRow)
+                line = text.readline()
+            if sentence != []:
+                ret.append(sentence)
+            sentence = []
+            line = text.readline()
+    return ret
+
 if __name__ == "__main__":
     import data
-    testSet = [u'The parties agreed that the wife would receive the first $214,000 from the sale of the family residence, receipt of which would not constitute a change of circumstances for modification of spousal support.', "It makes no more sense to reduce wife's spousal support because she received her rightful share of the community property than it would to increase wife's spousal support because husband received his rightful share of the community property.", 'In Rabkin, the contested income took the form of $1,800 mortgage payments derived from the sale of the family residence which "constituted the single major asset awarded to wife as her one-half share of the community property."', "The court noted that, in any event, because the parties' agreement expressly provided that the sale of the residence would not constitute a change in circumstances justifying a reduction in support, the trial court's reliance on the sale in ordering a reduction was improper.", "We have concluded that none of these factors furnished a proper basis for the trial court's $250 per month reduction in wife's permanent spousal support.", 'The agreement provided for spousal support amounts established in contemplation of a prompt sale of the family residence.', 'The parties may also agree, as part of a support provision, that specified occurrences will or will not constitute the requisite change of circumstances to allow subsequent modification of that provision.', 'The trial court then reduced her spousal support based in part on the income she was receiving from the note.']
-    #testSet = ['I walk the dog.']
-    #labeler = startSRL()
     """
     for test in testSet:
         getRoleLabels(labeler, test)
     """
-    #"""
     #for node in nodes:
     #cites, titles = data.getGoogleCites('139 Cal.App.4th 1225')
-    originalCase = case.Case('139 Cal.App.4th 1225')
+    originalCase = case.Case('139 Cal.App.4th 1225', senna=False)
+    """
     titles = data.getMoreGoogleCites(originalCase)
     titles = set(titles)
+    """
     cases = []
+    cases.append(originalCase)
+    """
     for title in titles:
-        cas = case.Case(title)
+        cas = case.Case(title, senna=False)
         cases.append(cas)
+    """
     #print srlCount(cases)
     #print commonRoles(cases)
     #writeRoleGraph(cases)
-    print summarizeCase(cases)
-    #"""
+    print findWhatIsAskedFor(originalCase)
+    #print summarizeCase(cases)
+    #originalCase = case.Case('139 Cal.App.4th 1225', senna=False)
+    #resolveAnaphora(originalCase)
     #generateSentences('walk', Counter({'': 6, 'the court': 5, 'she': 2}), Counter({'the dog': 5, 'the cat': 2}))
     """parser = startProcessPopen("java -Xmx1024m -jar lib/berkeleyParser.jar -gr lib/eng_sm6.gr")
     for test in testSet:
