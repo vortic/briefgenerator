@@ -2,6 +2,7 @@ import data, linguistics, nltk
 
 class Case:
     def __init__(self, name, senna=True, importance=1):
+        self.importance = importance
         if name.isdigit():
             self.name = name
             self.googleURL = name
@@ -14,4 +15,4 @@ class Case:
         self.tokens = trainer.tokenize(self.string)
         if senna:
             self.sennaMatrix = linguistics.getSennaMatrix(self)
-        self.importance = importance
+        self.SRLSentences = linguistics.getSRLSentences(self)
