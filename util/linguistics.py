@@ -80,7 +80,7 @@ def getRoleLabels(cas, stem=True):
                     ret.append(verb)
     return ret 
 
-def getSRLSentences(cas):
+def getSrlSentences(cas):
     stemmer = PorterStemmer()
     sennaMatrix = cas.sennaMatrix
     justVerbs = []
@@ -105,6 +105,37 @@ def getSRLSentences(cas):
             srlSentence.append(clause)
         ret.append(srlSentence)
     return ret
+
+def getSennaAlignedSentences(cas):
+    sennaMatrix = cas.sennaMatrix
+    sentences = []
+    for sentence in sennaMatrix:
+        stringBuilder = []
+        for sennaRow in sentence:
+            stringBuilder.append(sennaRow[0])
+        sentences.append(' '.join(stringBuilder))
+    return sentences
+
+def generateClauseSensitiveSentences(cas):
+    clauseCount = Counter()
+    srlSentences = cas.srlSentences
+    realSentences = cas.sentences
+    for sentence in srlSentences:
+        for clause in sentence:
+            #clauseCount[clause['V']] = clauseCount[clause['V']] + 1
+            if 'A0' in clause:
+                clauseCount[(clause['V'], clause['A0'])] = clauseCount[(clause['V'], clause['A0'])] + 1
+                break
+    for commonClause, count in clauseCount.most_common(5):
+        print commonClause
+        print count
+        for sentence in srlSentences:
+            for clause in sentence:
+                if 'A0' in clause and commonClause == (clause['V'], clause['A0']):
+                    sentenceIndex = srlSentences.index(sentence)
+                    print realSentences[sentenceIndex]
+                    #print tokenized
+    return clauseCount
 
 def getSennaMatrix(cas):
     def writeCase():
@@ -311,7 +342,7 @@ if __name__ == "__main__":
     #for node in nodes:
     #cites, titles = data.getGoogleCites('139 Cal.App.4th 1225')
     originalCase = case.Case('139 Cal.App.4th 1225', senna=True)
-    getSRLSentences(originalCase)
+    generateClauseSensitiveSentences(originalCase)
     """***
     originalCase = case.Case('139 Cal.App.4th 1225', senna=True)
     titles = data.getMoreGoogleCites(originalCase)
@@ -336,7 +367,7 @@ if __name__ == "__main__":
     #print summarizeCase(cases)
     #originalCase = case.Case('139 Cal.App.4th 1225', senna=False)
     #resolveAnaphora(originalCase)
-    generateSentences('made', Counter({'': 6, 'the court': 5, 'she': 2}), Counter({'the dog': 5, 'the cat': 2}))
+    #generateSentences('made', Counter({'': 6, 'the court': 5, 'she': 2}), Counter({'the dog': 5, 'the cat': 2}))
     """parser = startProcessPopen("java -Xmx1024m -jar lib/berkeleyParser.jar -gr lib/eng_sm6.gr")
     for test in testSet:
         print getParseTree(parser, test)

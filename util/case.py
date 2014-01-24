@@ -15,4 +15,5 @@ class Case:
         self.tokens = trainer.tokenize(self.string)
         if senna:
             self.sennaMatrix = linguistics.getSennaMatrix(self)
-        self.SRLSentences = linguistics.getSRLSentences(self)
+        self.sentences = linguistics.getSennaAlignedSentences(self)
+        self.srlSentences = linguistics.getSrlSentences(self)
