@@ -126,7 +126,7 @@ def generateClauseSensitiveSentences(cas):
             if 'A0' in clause:
                 clauseCount[(clause['V'], clause['A0'])] = clauseCount[(clause['V'], clause['A0'])] + 1
                 break
-    for commonClause, count in clauseCount.most_common(5):
+    for commonClause, count in clauseCount.most_common(20):
         print commonClause
         print count
         for sentence in srlSentences:
@@ -333,6 +333,30 @@ def findTerminationReasons(cas):
                 supportSentences.append(allLines[-1])
     print supportSentences
 
+def getAppellantAndRespondent(cas):
+    appellant = ''
+    respondent = ''
+    for sentence in cas.sentences:
+        if appellant != '' and respondent != '':
+            break
+        if re.match(r'(.*?)\s,\s.*Respondent', sentence):
+            respondent = re.findall(r'(.*?)\s,\s.*Respondent', sentence)[0]
+        if re.match(r'(.*?)\s,\s.*Appellant', sentence):
+            appellant = re.findall(r'(.*?)\s,\s.*Appellant', sentence)[0]
+    return (appellant.lower(), respondent.lower())
+
+def whoIsInProPer(cas):
+    ret = []
+    appellant, respondent = getAppellantAndRespondent(cas)
+    regex = r'.*?([^[0-9]*)\s,\sin\spro' #Mismatched [?
+    for sentence in cas.sentences:
+        if re.match(regex, sentence):
+            if appellant == re.findall(regex, sentence)[0].lower().strip():
+                ret.append('appellant')
+            if respondent == re.findall(regex, sentence)[0].lower().strip():
+                ret.append('respondent')
+    return ret
+
 if __name__ == "__main__":
     import data
     """
@@ -342,7 +366,10 @@ if __name__ == "__main__":
     #for node in nodes:
     #cites, titles = data.getGoogleCites('139 Cal.App.4th 1225')
     originalCase = case.Case('139 Cal.App.4th 1225', senna=True)
-    generateClauseSensitiveSentences(originalCase)
+    #originalCase = case.Case('77 Cal. Rptr. 2d 463', senna=True)
+    #getAppellantAndRespondent(originalCase)
+    print whoIsInProPer(originalCase)
+    #generateClauseSensitiveSentences(originalCase)
     """***
     originalCase = case.Case('139 Cal.App.4th 1225', senna=True)
     titles = data.getMoreGoogleCites(originalCase)
