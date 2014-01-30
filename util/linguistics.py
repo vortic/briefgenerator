@@ -101,7 +101,7 @@ def getSrlSentences(cas):
                     role = re.match('[SBIE]-(.*)', sennaRow[i+2]).group(1)
                     if not role in clause:
                         clause[role] = ''
-                    clause[role] = ' '.join([clause[role], sennaRow[0]])
+                    clause[role] = ' '.join([clause[role], sennaRow[0]]).strip()
             srlSentence.append(clause)
         ret.append(srlSentence)
     return ret
@@ -113,7 +113,7 @@ def getSennaAlignedSentences(cas):
         stringBuilder = []
         for sennaRow in sentence:
             stringBuilder.append(sennaRow[0])
-        sentences.append(' '.join(stringBuilder))
+        sentences.append(' '.join(stringBuilder).strip())
     return sentences
 
 def generateClauseSensitiveSentences(cas):
@@ -357,6 +357,26 @@ def whoIsInProPer(cas):
                 ret.append('respondent')
     return ret
 
+def whoWon(cas):
+    ret = ''
+    for sentence in cas.sentences:
+        if 'disposition' in sentence.lower():
+            sentIndex = cas.sentences.index(sentence)
+            if 'affirmed' in cas.sentences[sentIndex + 1]:
+                ret = 'respondent'
+            if 'reversed' in cas.sentences[sentIndex + 1]:
+                ret = 'appellant'
+    if ret != '':
+        return ret
+    for sentence in cas.srlSentences: #If disposition not clearly marked, decide based on whether affirmed or reversed was used last
+        for clause in sentence:
+            if 'V' in clause and re.match(r'affirmed', clause['V']):
+                #if 'A1' in clause and re.match(r'.*[Oo]rder.*', clause['A1']):
+                ret = 'respondent'
+            if 'V' in clause and re.match(r'reversed', clause['V']):
+                #if 'A1' in clause and re.match(r'.*[Oo]rder.*', clause['A1']):
+                ret = 'appellant'
+    return ret
 if __name__ == "__main__":
     import data
     """
@@ -368,22 +388,26 @@ if __name__ == "__main__":
     originalCase = case.Case('139 Cal.App.4th 1225', senna=True)
     #originalCase = case.Case('77 Cal. Rptr. 2d 463', senna=True)
     #getAppellantAndRespondent(originalCase)
-    print whoIsInProPer(originalCase)
     #generateClauseSensitiveSentences(originalCase)
-    """***
-    originalCase = case.Case('139 Cal.App.4th 1225', senna=True)
-    titles = data.getMoreGoogleCites(originalCase)
-    titles = set(titles)
+    titles = data.getNGoogleCites(originalCase, 20)
     cases = []
     cases.append(originalCase)
     for title in titles:
+        print title
         cas = case.Case(title, senna=True)
-        #time.sleep(1)
+        moreTitles = data.getNGoogleCites(cas, 10)
+        for title2 in moreTitles:
+            cas2 = case.Case(title2)
+            cases.append(cas2)
         cases.append(cas)
-    print srlCount(cases)
-    print commonRoles(cases)
-    writeRoleGraph(cases)
-    ***"""
+    print 'numCases:' + str(len(cases))
+    winners = Counter()
+    for cas in cases:
+        print 'winner:' + str(whoWon(cas))
+        winners[whoWon(cas)] += 1
+        print 'in pro per:' + str(whoIsInProPer(cas))
+    print winners
+    #writeRoleGraph(cases)
     """
     for cas in cases:
         print 'asked for:'

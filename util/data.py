@@ -78,7 +78,8 @@ def getGoogleCites(cas):
             else:
                 cites.append(fixCite(cite))
                 title = True
-    return cites, titles
+    #return cites, titles
+    return titles
 
 def getGoogleCase(cas):
     def removeHeading(raw):
@@ -99,7 +100,7 @@ def getGoogleCase(cas):
         print "Warning: Could not get " + caseName
     return ret
 
-def getMoreGoogleCites(cas):
+def getNGoogleCites(cas, n): #Approximately n
     def getTenLinks(start=0):
         url = 'http://scholar.google.com/scholar?cites=' + cas.googleURL + \
               '&as_sdt=2005&sciodt=4,5&hl=en&start=' + str(start)
@@ -115,7 +116,7 @@ def getMoreGoogleCites(cas):
     allCites = []
     start = 0
     getMore = True
-    while getMore:
+    while getMore and len(allCites) < n:
         newLinks = getTenLinks(start)
         if newLinks == []:
             getMore = False
