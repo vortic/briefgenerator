@@ -1,4 +1,4 @@
-import nltk, re, urllib2
+import nltk, re, urllib2, os
 import case
 
 def getHeader():
@@ -90,15 +90,27 @@ def getGoogleCase(cas):
                     return caseText
         #Failure: just keep Google's stuff in there
         return raw
-    url = 'http://scholar.google.com/scholar_case?case=' + cas.googleURL
-    header = getHeader()
-    req = urllib2.Request(url, None, header)
-    html = urllib2.urlopen(req).read()
-    raw = nltk.clean_html(html)
-    ret = removeHeading(raw)
-    if ret == None:
-        print "Warning: Could not get " + caseName
-    return ret
+    try:
+        with open('cases/' + cas.googleURL + '/string.txt', 'r') as f:
+            return f.read()
+    except IOError:
+        url = 'http://scholar.google.com/scholar_case?case=' + cas.googleURL
+        header = getHeader()
+        req = urllib2.Request(url, None, header)
+        html = urllib2.urlopen(req).read()
+        raw = nltk.clean_html(html)
+        ret = removeHeading(raw)
+        try:
+            try:
+                os.makedirs('cases/' + cas.googleURL + '/')
+            except OSError as exception:
+                if exception.errno != errno.EEXIST:
+                    raise
+            with open('cases/' + cas.googleURL + '/string.txt', 'w') as f:
+                f.write(ret)
+        except IOError:
+            print 'Could not cache case'
+        return ret
 
 def getNGoogleCites(cas, n): #Approximately n
     def getTenLinks(start=0):

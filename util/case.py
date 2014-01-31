@@ -10,6 +10,7 @@ class Case:
             self.name = name
             self.googleURL = data.getGoogleURL(self)
         self.string = data.getGoogleCase(self)
+        print self.string
         trainer = nltk.tokenize.punkt.PunktSentenceTokenizer()
         trainer.train("GoogleCases.txt")
         self.tokens = trainer.tokenize(self.string)

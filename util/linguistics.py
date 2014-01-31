@@ -121,20 +121,20 @@ def generateClauseSensitiveSentences(cas):
     srlSentences = cas.srlSentences
     realSentences = cas.sentences
     for sentence in srlSentences:
+        #print sentence
         for clause in sentence:
             #clauseCount[clause['V']] = clauseCount[clause['V']] + 1
             if 'A0' in clause:
-                clauseCount[(clause['V'], clause['A0'])] = clauseCount[(clause['V'], clause['A0'])] + 1
+                clauseCount[(clause['V'], clause['A0'].lower())] = clauseCount[(clause['V'], clause['A0'].lower())] + 1
                 break
     for commonClause, count in clauseCount.most_common(20):
         print commonClause
         print count
         for sentence in srlSentences:
             for clause in sentence:
-                if 'A0' in clause and commonClause == (clause['V'], clause['A0']):
+                if 'A0' in clause and commonClause == (clause['V'], clause['A0'].lower()):
                     sentenceIndex = srlSentences.index(sentence)
                     print realSentences[sentenceIndex]
-                    #print tokenized
     return clauseCount
 
 def getSennaMatrix(cas):
@@ -147,9 +147,19 @@ def getSennaMatrix(cas):
             while '' in sennaRow:
                 sennaRow.remove('')
         return sennaRow
+    try:
+        with open('cases/' + cas.googleURL + '/sennaOut.txt', 'r') as f:
+            with open('tmp/sennaOut.txt', 'w') as text:
+                sennaOut = f.read()
+                text.write(sennaOut)
+    except IOError:
+        writeCase()
+        startProcess("./lib/ASRL/senna/senna -path lib/ASRL/senna/ -srl < tmp/sennaIn.txt > tmp/sennaOut.txt")
+        with open('cases/' + cas.googleURL + '/sennaOut.txt', 'w') as f:
+            with open('tmp/sennaOut.txt', 'r') as text:
+                sennaOut = text.read()
+                f.write(sennaOut)
     ret = []
-    writeCase()
-    startProcess("./lib/ASRL/senna/senna -path lib/ASRL/senna/ -srl < tmp/sennaIn.txt > tmp/sennaOut.txt")
     with open('tmp/sennaOut.txt', 'r') as text:
         line = text.readline()
         sentence = []
@@ -389,6 +399,7 @@ if __name__ == "__main__":
     #originalCase = case.Case('77 Cal. Rptr. 2d 463', senna=True)
     #getAppellantAndRespondent(originalCase)
     #generateClauseSensitiveSentences(originalCase)
+    """
     titles = data.getNGoogleCites(originalCase, 20)
     cases = []
     cases.append(originalCase)
@@ -407,6 +418,7 @@ if __name__ == "__main__":
         winners[whoWon(cas)] += 1
         print 'in pro per:' + str(whoIsInProPer(cas))
     print winners
+    """
     #writeRoleGraph(cases)
     """
     for cas in cases:
