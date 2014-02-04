@@ -8,6 +8,7 @@ import nltk
 from nltk.tree import *
 from nltk.draw import tree
 from nltk.stem.porter import PorterStemmer
+from genderator.detector import *
 
 draw = False
 
@@ -387,11 +388,112 @@ def whoWon(cas):
                 #if 'A1' in clause and re.match(r'.*[Oo]rder.*', clause['A1']):
                 ret = 'appellant'
     return ret
+
+def appellantsClaims(cas):
+    appellant, respondent = getAppellantAndRespondent(cas)
+    print appellant
+    realSentences = cas.sentences
+    ret = []
+    for sentence in cas.srlSentences:
+        for clause in sentence:
+            if 'V' in clause and re.match(r'claim', clause['V']):
+                if 'A0' in clause and (re.match(appellant.split(' ')[0].lower(), clause['A0'].lower())
+                    or re.match(appellant.split(' ')[-1].lower(), clause['A0'].lower())
+                    or re.match('appellant', clause['A0'].lower())):
+                    ret.append(realSentences[cas.srlSentences.index(sentence)])    
+    return ret
+
+def courtsConclusions(cas):
+    realSentences = cas.sentences
+    ret = []
+    for sentence in cas.srlSentences:
+        for clause in sentence:
+            if 'A0' in clause and re.match('we', clause['A0'].lower()):
+                ret.append(realSentences[cas.srlSentences.index(sentence)])
+                continue
+            #if 'V' in clause and re.match(r'conclu', clause['V']):
+                """if 'A0' in clause and (re.match('we', clause['A0'].lower())
+                    or re.match('court', clause['A0'].lower())):"""
+    return ret
+
+def mostCommonA0Verbs(cases, A0s):
+    ret = Counter()
+    for A0 in A0s:
+        for cas in cases:
+            for sentence in cas.srlSentences:
+                for clause in sentence:
+                    if 'A0' in clause and re.match(A0, clause['A0'].lower()):
+                        if 'V' in clause:
+                            ret[clause['V']] += 1
+    return ret 
+
+def threeBestA0Sentences(cas, cases, A0s):
+    commonVerbs = mostCommonA0Verbs(cases, A0s)
+    ret = []
+    for verb, count in commonVerbs.most_common():
+        for A0 in A0s:
+            for sentence in cas.srlSentences:
+                for clause in sentence:
+                    if 'V' in clause and clause['V'] == verb:
+                        if 'A0' in clause and re.match(A0, clause['A0'].lower()):
+                            ret.append(cas.sentences[cas.srlSentences.index(sentence)])
+                            if len(ret) == 3:
+                                return ret
+                            continue
+    return ret
+
+def getGenderPronoun(cas, person):
+    ret = []
+    appellant, respondent = getAppellantAndRespondent(cas)
+    appellantFirstName = appellant.split(' ')[0].title()
+    respondentFirstName = respondent.split(' ')[0].title()
+    d = Detector()
+    gender = -1
+    if person == 'appellant':
+        gender = d.getGender(appellantFirstName)
+    else:
+        gender = d.getGender(respondentFirstName)
+    if gender == 0:
+        return 'he'
+    if gender == 1:
+        return 'she'
+    else: #Failure: assume the opposite of the other party
+        if person == 'appellant':
+            gender = d.getGender(respondentFirstName)
+        else:
+            gender = d.getGender(appellantFirstName)
+        if gender == 0:
+            return 'she'
+        if gender == 1:
+            return 'he'
+    return 'both unknown'
+    
 if __name__ == "__main__":
     import data
     """
     for test in testSet:
         getRoleLabels(labeler, test)
+    """
+    cases = data.getAllSavedCases()
+    for cas in cases:
+        appellant, respondent = getAppellantAndRespondent(cas)
+        print cas.name
+        print "court's arguments:"
+        print threeBestA0Sentences(cas, cases, ['we'])
+        print "trial court's arguments:"
+        print threeBestA0Sentences(cas, cases, ['trial court', 'the court'])
+        print "respondent's arguments:"
+        print threeBestA0Sentences(cas, cases, ['respondent', getGenderPronoun(cas, 'respondent'), respondent.split(' ')[0], respondent.split(' ')[-1]])
+        print "appellant's arguments:"
+        print threeBestA0Sentences(cas, cases, ['appellant', getGenderPronoun(cas, 'appellant'), appellant.split(' ')[0], appellant.split(' ')[-1]])
+    """
+    for cas in cases:
+        print cas.name
+        print "appellant's claims:"
+        print appellantsClaims(cas)
+        print "court's conclusions:"
+        print courtsConclusions(cas)
+    """
     """
     #for node in nodes:
     #cites, titles = data.getGoogleCites('139 Cal.App.4th 1225')
@@ -399,7 +501,6 @@ if __name__ == "__main__":
     #originalCase = case.Case('77 Cal. Rptr. 2d 463', senna=True)
     #getAppellantAndRespondent(originalCase)
     #generateClauseSensitiveSentences(originalCase)
-    """
     titles = data.getNGoogleCites(originalCase, 20)
     cases = []
     cases.append(originalCase)
@@ -420,19 +521,3 @@ if __name__ == "__main__":
     print winners
     """
     #writeRoleGraph(cases)
-    """
-    for cas in cases:
-        print 'asked for:'
-        findWhatIsAskedFor(cas)
-        print 'support terminated because:'
-        findTerminationReasons(cas)
-    """
-    #print summarizeCase(cases)
-    #originalCase = case.Case('139 Cal.App.4th 1225', senna=False)
-    #resolveAnaphora(originalCase)
-    #generateSentences('made', Counter({'': 6, 'the court': 5, 'she': 2}), Counter({'the dog': 5, 'the cat': 2}))
-    """parser = startProcessPopen("java -Xmx1024m -jar lib/berkeleyParser.jar -gr lib/eng_sm6.gr")
-    for test in testSet:
-        print getParseTree(parser, test)
-    print getParseTree(parser, testSet[0])"""
-    #labeler.close()

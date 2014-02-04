@@ -83,12 +83,14 @@ def getGoogleCites(cas):
 
 def getGoogleCase(cas):
     def removeHeading(raw):
+        """
         headingRemover = re.compile('.*?OPINION(.*)Save\strees\s-\sread', re.DOTALL)
         if re.match(headingRemover, raw):
             for result in re.finditer(headingRemover, raw):
                 for caseText in result.groups():
                     return caseText
         #Failure: just keep Google's stuff in there
+        """
         return raw
     try:
         with open('cases/' + cas.googleURL + '/string.txt', 'r') as f:
@@ -136,10 +138,18 @@ def getNGoogleCites(cas, n): #Approximately n
         start += 10
     return allCites
 
+def getAllSavedCases():
+    ret = []
+    for caseName in os.listdir('cases'):
+        if caseName.isdigit():
+            ret.append(case.Case(caseName))
+    return ret
+
 if __name__ == "__main__":
     #cites, titles = getGoogleCites('224 Cal. App. 3d 885')
-    cas = case.Case('224 Cal. App. 3d 885')
-    print getMoreGoogleCites(cas)
+    cases = getAllSavedCases()
+    for cas in cases:
+        print cas.sentences[0]
     """for cite, title in zip(cites, titles):
         print
         if re.match('.*\d.*', title):
