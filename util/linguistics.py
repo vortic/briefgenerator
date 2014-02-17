@@ -418,6 +418,13 @@ def courtsConclusions(cas):
 
 def mostCommonA0Verbs(cases, A0s):
     ret = Counter()
+    #If A0s == [] then just return most common verbs
+    if A0s == []:
+        for cas in cases:
+            for sentence in cas.srlSentences:
+                for clause in sentence:
+                    if 'V' in clause:
+                        ret[clause['V']] += 1
     for A0 in A0s:
         for cas in cases:
             for sentence in cas.srlSentences:
@@ -440,6 +447,14 @@ def threeBestA0Sentences(cas, cases, A0s):
                             if len(ret) == 3:
                                 return ret
                             continue
+    return ret
+
+def verbCount(cas, verb):
+    ret = 0
+    for sentence in cas.srlSentences:
+        for clause in sentence:
+            if 'V' in clause and clause['V'] == verb:
+                ret += 1
     return ret
 
 def getGenderPronoun(cas, person):
@@ -497,7 +512,8 @@ if __name__ == "__main__":
     """
     #for node in nodes:
     #cites, titles = data.getGoogleCites('139 Cal.App.4th 1225')
-    originalCase = case.Case('139 Cal.App.4th 1225', senna=True)
+    #originalCase = case.Case('139 Cal.App.4th 1225', senna=True)
+    originalCase = case.Case('575864357603110085')
     #originalCase = case.Case('77 Cal. Rptr. 2d 463', senna=True)
     #getAppellantAndRespondent(originalCase)
     #generateClauseSensitiveSentences(originalCase)
@@ -519,5 +535,5 @@ if __name__ == "__main__":
         winners[whoWon(cas)] += 1
         print 'in pro per:' + str(whoIsInProPer(cas))
     print winners
-    """
     #writeRoleGraph(cases)
+    """
