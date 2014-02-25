@@ -8,9 +8,9 @@ import nltk
 from nltk.tree import *
 from nltk.draw import tree
 from nltk.stem.porter import PorterStemmer
-from genderator.detector import *
 
-draw = False
+from genderator.detector import *
+d = Detector()
 
 def getSubject(sentence):
     """
@@ -457,12 +457,11 @@ def verbCount(cas, verb):
                 ret += 1
     return ret
 
-def getGenderPronoun(cas, person):
+def getGenderPronoun(d, cas, person):
     ret = []
     appellant, respondent = getAppellantAndRespondent(cas)
     appellantFirstName = appellant.split(' ')[0].title()
     respondentFirstName = respondent.split(' ')[0].title()
-    d = Detector()
     gender = -1
     if person == 'appellant':
         gender = d.getGender(appellantFirstName)

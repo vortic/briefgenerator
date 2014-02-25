@@ -17,3 +17,4 @@ class Case:
             self.sennaMatrix = linguistics.getSennaMatrix(self)
         self.sentences = linguistics.getSennaAlignedSentences(self)
         self.srlSentences = linguistics.getSrlSentences(self)
+        self.summary = {1:[], 2:[], 3:[], 4:[]}
