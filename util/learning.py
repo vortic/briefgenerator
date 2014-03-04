@@ -65,40 +65,42 @@ def getFeatures(cas, sentence, srlSentence):
     for clause in srlSentence:
         if 'A0' in clause:
             a0 = clause['A0'].lower()
+            v = clause['V'].lower()
             for appellantName in appellantNames:
                 if appellantName in a0:
                     featureDict['appellant'] = 1
-                    featureDict[('appellant', a0)] = 1
+                    featureDict[('appellant', v)] = 1
             for respondentName in respondentNames:
                 if respondentName in a0:
                     featureDict['respondent'] = 1
-                    featureDict[('respondent', a0)] = 1
+                    featureDict[('respondent', v)] = 1
             if 'trial court' in a0 or 'the court' in a0 or 'family court' in a0:
                 featureDict['trial court'] = 1
-                featureDict[('trial court', a0)] = 1
+                featureDict[('trial court', v)] = 1
             if 'we' in a0:
                 featureDict['we'] = 1
-                featureDict[('we', a0)] = 1
+                featureDict[('we', v)] = 1
     """
     if len(srlSentence) == 0:
         return featureDict
     clause = srlSentence[0]
-    if 'A0' in clause:
+    if 'A0' in clause and 'V' in clause:
         a0 = clause['A0'].lower()
+        v = clause['V'].lower()
         for appellantName in appellantNames:
             if appellantName in a0:
                 featureDict['appellant'] = 1
-                featureDict[('appellant', a0)] = 1
+                featureDict[('appellant', v)] = 1
         for respondentName in respondentNames:
             if respondentName in a0:
                 featureDict['respondent'] = 1
-                featureDict[('respondent', a0)] = 1
+                featureDict[('respondent', v)] = 1
         if 'trial court' in a0 or 'the court' in a0 or 'family court' in a0:
             featureDict['trial court'] = 1
-            featureDict[('trial court', a0)] = 1
+            featureDict[('trial court', v)] = 1
         if 'we' in a0:
             featureDict['we'] = 1
-            featureDict[('we', a0)] = 1
+            featureDict[('we', v)] = 1
     """
     for clause in srlSentence:
         if 'A0' in clause:
@@ -231,6 +233,13 @@ if __name__ == "__main__":
         loop = addNSummarySentences(labeledTraining, unlabeledTraining, n=20)
     training = labeledTraining + unlabeledTraining
     test = [unlabeledCases[-2], unlabeledCases[-1]]
+    print 'training summaries:'
+    for cas in training:
+        print 'training case ' + cas.name
+        for cls, linenos in cas.summary.iteritems():
+            print str(cls)
+            for lineno in linenos:
+                print cas.sentences[lineno]
     for cas in test:
         print 'testing on ' + cas.name
         predictSummarySentences(cas, training)
