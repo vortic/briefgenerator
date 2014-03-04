@@ -1,6 +1,9 @@
 import nltk, re, urllib2, os
 import case
 
+import time
+import random
+
 def getHeader():
     header = {
         'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -22,6 +25,7 @@ def getGoogleURL(cas):
     #print 'Getting URL for ' +caseName
     header = getHeader()
     req = urllib2.Request(url, None, header)
+    time.sleep(random.randint(2, 10))
     html = urllib2.urlopen(req).read()
     #print req.get_header('Cookie')
     urlRegex = r'scholar_case\?case=([0-9]+)'
@@ -60,6 +64,7 @@ def getGoogleCites(cas):
     url = 'http://scholar.google.com/scholar_case?about=' + cas.googleURL
     header = getHeader()
     req = urllib2.Request(url, None, header)
+    time.sleep(random.randint(2, 10))
     html = urllib2.urlopen(req).read()
     raw = nltk.clean_html(html)
     #print raw
@@ -99,6 +104,7 @@ def getGoogleCase(cas):
         url = 'http://scholar.google.com/scholar_case?case=' + cas.googleURL
         header = getHeader()
         req = urllib2.Request(url, None, header)
+        time.sleep(random.randint(2, 10))
         html = urllib2.urlopen(req).read()
         raw = nltk.clean_html(html)
         ret = removeHeading(raw)
@@ -120,12 +126,13 @@ def getNGoogleCites(cas, n): #Approximately n
               '&as_sdt=2005&sciodt=4,5&hl=en&start=' + str(start)
         header = getHeader()
         req = urllib2.Request(url, None, header)
+        time.sleep(random.randint(2, 10))
         html = urllib2.urlopen(req).read()
         urlRegex = r'scholar_case\?case=([0-9]+)'
         allLinks = []
         for result in re.finditer(urlRegex, html):
             for link in result.groups():
-                allLinks.append(link)
+                allLinks.append(case.Case(link))
         return allLinks[1:]
     allCites = []
     start = 0
@@ -149,7 +156,7 @@ if __name__ == "__main__":
     #cites, titles = getGoogleCites('224 Cal. App. 3d 885')
     cases = getAllSavedCases()
     for cas in cases:
-        print cas.sentences[0]
+        getNGoogleCites(cas, 50)
     """for cite, title in zip(cites, titles):
         print
         if re.match('.*\d.*', title):

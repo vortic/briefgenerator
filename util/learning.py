@@ -61,17 +61,44 @@ def getFeatures(cas, sentence, srlSentence):
     if appellant.split(' ')[-1].lower() != respondent.split(' ')[-1].lower(): #Different last names
         appellantNames.append(appellant.split(' ')[-1].lower())
         respondentNames.append(respondent.split(' ')[-1].lower())
+    """
     for clause in srlSentence:
         if 'A0' in clause:
             a0 = clause['A0'].lower()
-            if a0 in appellantNames:
-                featureDict['appellant'] = 1
-            if a0 in respondentNames:
-                featureDict['respondent'] = 1
-            if 'trial court' in a0 or 'the court' in a0:
+            for appellantName in appellantNames:
+                if appellantName in a0:
+                    featureDict['appellant'] = 1
+                    featureDict[('appellant', a0)] = 1
+            for respondentName in respondentNames:
+                if respondentName in a0:
+                    featureDict['respondent'] = 1
+                    featureDict[('respondent', a0)] = 1
+            if 'trial court' in a0 or 'the court' in a0 or 'family court' in a0:
                 featureDict['trial court'] = 1
+                featureDict[('trial court', a0)] = 1
             if 'we' in a0:
                 featureDict['we'] = 1
+                featureDict[('we', a0)] = 1
+    """
+    if len(srlSentence) == 0:
+        return featureDict
+    clause = srlSentence[0]
+    if 'A0' in clause:
+        a0 = clause['A0'].lower()
+        for appellantName in appellantNames:
+            if appellantName in a0:
+                featureDict['appellant'] = 1
+                featureDict[('appellant', a0)] = 1
+        for respondentName in respondentNames:
+            if respondentName in a0:
+                featureDict['respondent'] = 1
+                featureDict[('respondent', a0)] = 1
+        if 'trial court' in a0 or 'the court' in a0 or 'family court' in a0:
+            featureDict['trial court'] = 1
+            featureDict[('trial court', a0)] = 1
+        if 'we' in a0:
+            featureDict['we'] = 1
+            featureDict[('we', a0)] = 1
     """
     for clause in srlSentence:
         if 'A0' in clause:
@@ -95,7 +122,6 @@ def makeSVM(trainingData, prob=False):
         X = v.fit_transform(XDicts)
         return (X, Y)
     from sklearn import svm
-    readLabels(trainingData) #All trainingData should be labeled
     (X, Y) = getXAndY()
     clf = svm.SVC(probability=prob) #one against one
     clf.fit(X, Y)
@@ -135,8 +161,36 @@ def labelAllTraining(labeledTraining, unlabeledTraining):
                     print cas.sentences[lineno]
             print
 
+def addNSummarySentences(labeledTraining, unlabeledTraining, n=10):
+    clf = makeSVM(labeledTraining + unlabeledTraining)
+    for unused in range(n):
+        bestCounts = {1:-1, 2:-1, 3:-1, 4:-1}
+        bestSentences = {1:(None, -1), 2:(None, -1), 3:(None, -1), 4:(None, -1)}
+        for cas in unlabeledTraining:
+            for lineNumber, (sentence, srlSentence) in enumerate(zip(cas.sentences, cas.srlSentences)):
+                featureDict = getFeatures(cas, sentence, srlSentence)
+                dfResult = clf.decision_function(v.transform(featureDict))
+                dfResult = dfResult[0] #Fix (Vectorize)
+                (winner, bestCount) = votingAlgorithm(dfResult)
+                if bestCount > bestCounts[winner]:
+                    for person, linenos in cas.summary.iteritems():
+                        if winner == person and lineNumber not in linenos and len(linenos) < 3:#3=number of summary sentences
+                            bestCounts[winner] = bestCount
+                            bestSentences[winner] = (cas, lineNumber)
+        noSummaries = 0
+        for cls, (cas, lineNumber) in bestSentences.iteritems():
+            if cas == None or lineNumber < 0:
+                print 'class ' + str(cls) + ': did not add summary'
+                noSummaries += 1
+            else:
+                cas.summary[cls].append(lineNumber)
+                print 'class ' + str(cls) + ' with score ' + str(bestCounts[cls])
+                print cas.sentences[lineNumber]
+        if noSummaries == len(bestSentences):
+            return False
+    return True
+
 def predictSummarySentences(cas, labeledTraining, n=3):
-    print cas.name
     clf = makeSVM(labeledTraining)
     print 'Size of labeled training: ' + str(len(labeledTraining))
     alreadyUsed = []
@@ -158,10 +212,10 @@ def predictSummarySentences(cas, labeledTraining, n=3):
             bestCounts = {1:-1, 2:-1, 3:-1, 4:-1}
             bestSentences = {1:-1, 2:-1, 3:-1, 4:-1}
 
-
 if __name__ == "__main__":
     cases = data.getAllSavedCases()
     labeledTraining = findLabels(cases)
+    readLabels(labeledTraining)
     print 'labeled cases are: ' + str([cas.name for cas in labeledTraining])
     """
     newcas = case.Case('6850872635911328292')
@@ -169,14 +223,17 @@ if __name__ == "__main__":
         print str(i) + ': ' + sentence
     """
     unlabeledCases = filter(lambda x:x not in labeledTraining, cases)
-    unlabeledTraining = unlabeledCases[:-1]
-    test = [unlabeledCases[-1]]
+    unlabeledTraining = unlabeledCases[:-2]
     #clf = makeSVM(training)
-    labelAllTraining(labeledTraining, unlabeledTraining)
-    print str(len(unlabeledTraining)) + ' cases machine labeled'
-    print len(labeledTraining)
+    #labelAllTraining(labeledTraining, unlabeledTraining)
+    loop = True
+    while loop:
+        loop = addNSummarySentences(labeledTraining, unlabeledTraining, n=20)
+    training = labeledTraining + unlabeledTraining
+    test = [unlabeledCases[-2], unlabeledCases[-1]]
     for cas in test:
-        predictSummarySentences(cas, labeledTraining)
+        print 'testing on ' + cas.name
+        predictSummarySentences(cas, training)
         print cas.summary
         for person, linenos in cas.summary.iteritems():
             print str(person)
