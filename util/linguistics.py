@@ -285,7 +285,7 @@ def generateSentences(verb, roles, countLowerBound=3, noEmpty=True):
                 allSentences.append((generatedSentence, acceptorcount, acceptedcount))
     return allSentences
 
-def resolveAnaphora(cas):
+def resolveAnaphoraJavarap(cas):
     def makeJavarapInput():
         with open('tmp/javarapIn.txt', 'w') as f:
             for token in cas.tokens:
@@ -434,6 +434,14 @@ def mostCommonA0Verbs(cases, A0s):
                             ret[clause['V']] += 1
     return ret 
 
+def mostCommonA0s(cas):
+    ret = Counter()
+    for sentence in cas.srlSentences:
+        for clause in sentence:
+            if 'A0' in clause:
+                ret[clause['A0'].lower()] += 1
+    return ret
+
 def threeBestA0Sentences(cas, cases, A0s):
     commonVerbs = mostCommonA0Verbs(cases, A0s)
     ret = []
@@ -481,7 +489,42 @@ def getGenderPronoun(d, cas, person):
         if gender == 1:
             return 'he'
     return 'both unknown'
-    
+
+def resolveAnaphora(cas):
+    appellant, respondent = getAppellantAndRespondent(cas)
+    appellantNames = set(['appellant', 'plaintiff', getGenderPronoun(d, cas, 'appellant')])
+    respondentNames = set(['respondent', 'defendant', getGenderPronoun(d, cas, 'respondent')])
+    if len(appellant) > 1:
+        appellantNames.add(appellant.split(' ')[0].lower())
+    if len(respondent) > 1:
+        respondentNames.add(respondent.split(' ')[0].lower())
+    if len(appellant) > 1 and len(respondent) > 1 and appellant.split(' ')[-1].lower() != respondent.split(' ')[-1].lower(): #Different last names
+        appellantNames.add(appellant.split(' ')[-1].lower())
+        respondentNames.add(respondent.split(' ')[-1].lower())
+    ret = {1:appellantNames, 2:respondentNames, 3:set(['trial', 'trial court', 'family court']), 4:set(['we', 'this court', 'appeal'])}
+    a0s = mostCommonA0s(cas)
+    candidatesLeft = True
+    while candidatesLeft:
+        extraWords = {1:set(), 2:set(), 3:set(), 4:set()}
+        candidatesLeft = False
+        for a0, count in a0s.most_common():
+            if len(a0) > 2:
+                assigned = False
+                for key, value in ret.iteritems():
+                    if a0 in value:
+                        assigned = True
+                if not assigned:
+                    for key, value in ret.iteritems():
+                        for word in value:
+                            if word is not 'he' and word is not 'she':
+                                if word in ' ' + a0 or a0 in ' ' + word or word in a0 + ' ' or a0 in word + ' ':
+                                    extraWords[key].add(a0)
+                                    candidatesLeft = True
+        for key, value in extraWords.iteritems():
+            for word in value:
+                ret[key].add(word)
+    return ret
+
 if __name__ == "__main__":
     import data
     """
@@ -490,6 +533,10 @@ if __name__ == "__main__":
     """
     cases = data.getAllSavedCases()
     for cas in cases:
+        print cas.name
+        resolveAnaphora(cas)
+        print
+        """
         appellant, respondent = getAppellantAndRespondent(cas)
         print cas.name
         print "court's arguments:"
@@ -500,6 +547,7 @@ if __name__ == "__main__":
         print threeBestA0Sentences(cas, cases, ['respondent', getGenderPronoun(cas, 'respondent'), respondent.split(' ')[0], respondent.split(' ')[-1]])
         print "appellant's arguments:"
         print threeBestA0Sentences(cas, cases, ['appellant', getGenderPronoun(cas, 'appellant'), appellant.split(' ')[0], appellant.split(' ')[-1]])
+        """
     """
     for cas in cases:
         print cas.name

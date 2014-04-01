@@ -1,12 +1,8 @@
-import re
 import numpy as np
 import case, linguistics, data
 
 from sklearn.feature_extraction import DictVectorizer
 v = DictVectorizer(sparse=False) #Decision_function not supported for sparse SVM
-
-from genderator.detector import *
-d = Detector()
 
 def readLabels(trainingData):
     def convertWordToLabel(word):
@@ -53,74 +49,45 @@ def findLabels(trainingData):
             pass
     return labeledData
 
-def getFeatures(cas, sentence, srlSentence):
-    featureDict = {}
-    appellant, respondent = linguistics.getAppellantAndRespondent(cas)
-    appellantNames = [appellant.split(' ')[0].lower(), 'appellant', 'plaintiff', linguistics.getGenderPronoun(d, cas, 'appellant')]
-    respondentNames = [respondent.split(' ')[0].lower(), 'respondent', 'defendant', linguistics.getGenderPronoun(d, cas, 'respondent')]
-    if appellant.split(' ')[-1].lower() != respondent.split(' ')[-1].lower(): #Different last names
-        appellantNames.append(appellant.split(' ')[-1].lower())
-        respondentNames.append(respondent.split(' ')[-1].lower())
-    """
-    for clause in srlSentence:
-        if 'A0' in clause:
-            a0 = clause['A0'].lower()
-            v = clause['V'].lower()
-            for appellantName in appellantNames:
-                if appellantName in a0:
-                    featureDict['appellant'] = 1
-                    featureDict[('appellant', v)] = 1
-            for respondentName in respondentNames:
-                if respondentName in a0:
-                    featureDict['respondent'] = 1
-                    featureDict[('respondent', v)] = 1
-            if 'trial court' in a0 or 'the court' in a0 or 'family court' in a0:
-                featureDict['trial court'] = 1
-                featureDict[('trial court', v)] = 1
-            if 'we' in a0:
-                featureDict['we'] = 1
-                featureDict[('we', v)] = 1
-    """
-    if len(srlSentence) == 0:
-        return featureDict
-    clause = srlSentence[0]
-    if 'A0' in clause and 'V' in clause:
-        a0 = clause['A0'].lower()
-        v = clause['V'].lower()
-        for appellantName in appellantNames:
-            if appellantName in a0:
-                featureDict['appellant'] = 1
-                featureDict[('appellant', v)] = 1
-        for respondentName in respondentNames:
-            if respondentName in a0:
-                featureDict['respondent'] = 1
-                featureDict[('respondent', v)] = 1
-        if 'trial court' in a0 or 'the court' in a0 or 'family court' in a0:
-            featureDict['trial court'] = 1
-            featureDict[('trial court', v)] = 1
-        if 'we' in a0:
-            featureDict['we'] = 1
-            featureDict[('we', v)] = 1
-    """
-    for clause in srlSentence:
-        if 'A0' in clause:
-            featureDict[('A0', clause['A0'])] = 1
-        if 'V' in clause:
-            featureDict[('V', clause['V'])] = 1
-        if 'A0' in clause and 'V' in clause:
-            featureDict[(clause['A0'], clause['V'])] = 1
-    """
-    return featureDict
+def getFeaturesCompact(srlSentences):
+    def normalizeFeature(value, mn, mx):
+        return (value-mn)/(mx-mn)
+    featureDicts = []
+    for (srlSentence, indicators) in srlSentences:
+        featureDict = {}
+        featureDict['sentenceComplexity'] = normalizeFeature(len(srlSentence), 0, 5)
+        for clause in srlSentence:
+            index = str(srlSentence.index(clause))
+            if 'A0' in clause and 'V' in clause:
+                a0 = clause['A0'].lower()
+                if a0 in indicators[1]:
+                    #featureDict['appellant', index] = 1
+                    featureDict['appellant'] = normalizeFeature(1, 0, 1)
+                if a0 in indicators[2]:
+                    #featureDict['respondent', index] = 1
+                    featureDict['respondent'] = normalizeFeature(1, 0, 1)
+                if a0 in indicators[3]:
+                    #featureDict['trial court', index] = 1
+                    featureDict['trial court'] = normalizeFeature(1, 0, 1)
+                if a0 in indicators[4]:
+                    #featureDict['we', index] = 1
+                    featureDict['we'] = normalizeFeature(1, 0, 1)
+                v = clause['V'].lower()
+                featureDict[('V', v)] = normalizeFeature(1, 0, 1)
+        featureDicts.append(featureDict)
+    return featureDicts
 
-def makeSVM(trainingData, prob=False):
+def makeSVM(labeledSrlSentences, prob=False):
     def getXAndY():
-        XDicts = []
+        srlSentences = []
         Y = []
-        for cas in trainingData:
-            for label, lineList in cas.summary.iteritems():
-                for i in lineList:
-                    XDicts.append(getFeatures(cas, cas.sentences[i], cas.srlSentences[i]))
-                    Y.append(label)
+        #print labeledSrlSentences
+        for (casNum, label, srlSentence, cas) in labeledSrlSentences:
+            #print label
+            #print srlSentence
+            srlSentences.append((cas.srlSentences[srlSentence], cas.indicators))
+            Y.append(label)
+        XDicts = getFeaturesCompact(srlSentences)
         X = v.fit_transform(XDicts)
         return (X, Y)
     from sklearn import svm
@@ -129,128 +96,104 @@ def makeSVM(trainingData, prob=False):
     clf.fit(X, Y)
     return clf
 
-def votingAlgorithm(dfResult, numClasses=4):
-    votes = np.zeros(numClasses)
-    p = 0
-    for i in range(numClasses):
-        for j in range(i + 1, numClasses):
-            if dfResult[p] > 0:
-                #votes[i] += 1
-                votes[i] += dfResult[p]
-            else:
-                #votes[j] += 1
-                votes[j] -= dfResult[p]
-            p += 1
-    winner = -1
-    bestCount = -1
-    for i, count in enumerate(votes):
-        if count > bestCount:
-            winner = i + 1
-            bestCount = count
-    return (winner, bestCount)
+def votingAlgorithm(dfResults, numClasses=4):
+    votes = np.zeros((len(dfResults), numClasses))
+    for k in range(len(dfResults)):
+        dfResult = dfResults[k]
+        p = 0
+        for i in range(numClasses):
+            for j in range(i + 1, numClasses):
+                if dfResult[p] > 0:
+                    #votes[k, i] += 1
+                    votes[k, i] += dfResult[p]
+                else:
+                    #votes[k, j] += 1
+                    votes[k, j] -= dfResult[p]
+                p += 1
+    return (np.argmax(votes, axis=0), np.amax(votes, axis=0))
 
-def labelAllTraining(labeledTraining, unlabeledTraining):
-    if len(unlabeledTraining) == 0:
-        return
-    else:
-        for cas in unlabeledTraining:
-            predictSummarySentences(cas, labeledTraining)
-            labeledTraining.append(cas)
-            print cas.summary
-            for person, linenos in cas.summary.iteritems():
-                print str(person)
-                for lineno in linenos:
-                    print cas.sentences[lineno]
-            print
+def compressLabeledCases(cases):
+    ret = []
+    for i, cas in enumerate(cases):
+        for person, summarySentences in cas.summary.iteritems():
+            for summarySentence in summarySentences:
+                ret.append((i, person, summarySentence, cas))
+    return ret
 
-def addNSummarySentences(labeledTraining, unlabeledTraining, n=10):
-    clf = makeSVM(labeledTraining + unlabeledTraining)
-    for unused in range(n):
-        bestCounts = {1:-1, 2:-1, 3:-1, 4:-1}
-        bestSentences = {1:(None, -1), 2:(None, -1), 3:(None, -1), 4:(None, -1)}
-        for cas in unlabeledTraining:
-            for lineNumber, (sentence, srlSentence) in enumerate(zip(cas.sentences, cas.srlSentences)):
-                featureDict = getFeatures(cas, sentence, srlSentence)
-                dfResult = clf.decision_function(v.transform(featureDict))
-                dfResult = dfResult[0] #Fix (Vectorize)
-                (winner, bestCount) = votingAlgorithm(dfResult)
-                if bestCount > bestCounts[winner]:
-                    for person, linenos in cas.summary.iteritems():
-                        if winner == person and lineNumber not in linenos and len(linenos) < 3:#3=number of summary sentences
-                            bestCounts[winner] = bestCount
-                            bestSentences[winner] = (cas, lineNumber)
-        noSummaries = 0
-        for cls, (cas, lineNumber) in bestSentences.iteritems():
-            if cas == None or lineNumber < 0:
-                print 'class ' + str(cls) + ': did not add summary'
-                noSummaries += 1
-            else:
-                cas.summary[cls].append(lineNumber)
-                print 'class ' + str(cls) + ' with score ' + str(bestCounts[cls])
-                print cas.sentences[lineNumber]
-        if noSummaries == len(bestSentences):
-            return False
-    return True
-
-def predictSummarySentences(cas, labeledTraining, n=3):
-    clf = makeSVM(labeledTraining)
-    print 'Size of labeled training: ' + str(len(labeledTraining))
-    alreadyUsed = []
-    for sentenceCount in range(0, n):
-        bestCounts = {1:-1, 2:-1, 3:-1, 4:-1}
-        bestSentences = {1:-1, 2:-1, 3:-1, 4:-1}
-        for lineNumber, (sentence, srlSentence) in enumerate(zip(cas.sentences, cas.srlSentences)):
-            featureDict = getFeatures(cas, sentence, srlSentence)
-            dfResult = clf.decision_function(v.transform(featureDict))
-            dfResult = dfResult[0] #Fix (Vectorize)
-            (winner, bestCount) = votingAlgorithm(dfResult)
-            if bestCount > bestCounts[winner]:
-                if lineNumber not in alreadyUsed:
-                    bestCounts[winner] = bestCount
-                    bestSentences[winner] = lineNumber
-        for cls, lineNumber in bestSentences.iteritems():
-            cas.summary[cls].append(lineNumber)
-            alreadyUsed.append(lineNumber)
-            bestCounts = {1:-1, 2:-1, 3:-1, 4:-1}
-            bestSentences = {1:-1, 2:-1, 3:-1, 4:-1}
+def getTestingFeatures(cases):
+    def normalizeFeature(value, mn, mx):
+        return (value-mn)/(mx-mn)
+    featureDicts = []
+    caseMap = []
+    for cas in cases:
+        for i, srlSentence in enumerate(cas.srlSentences):
+            featureDict = {}
+            add = True
+            for person, summarySentences in cas.summary.iteritems():
+                for summarySentence in summarySentences:
+                    if i == summarySentence:
+                        add = False
+            if add:
+                featureDict['sentenceComplexity'] = normalizeFeature(len(srlSentence), 0, 5)
+                for clause in srlSentence:
+                    index = str(srlSentence.index(clause))
+                    if 'A0' in clause and 'V' in clause:
+                        a0 = clause['A0'].lower()
+                        if a0 in cas.indicators[1]:
+                            #featureDict['appellant', index] = 1
+                            featureDict['appellant'] = normalizeFeature(1, 0, 1)
+                        if a0 in cas.indicators[2]:
+                            #featureDict['respondent', index] = 1
+                            featureDict['respondent'] = normalizeFeature(1, 0, 1)
+                        if a0 in cas.indicators[3]:
+                            #featureDict['trial court', index] = 1
+                            featureDict['trial court'] = normalizeFeature(1, 0, 1)
+                        if a0 in cas.indicators[4]:
+                            #featureDict['we', index] = 1
+                            featureDict['we'] = normalizeFeature(1, 0, 1)
+                        v = clause['V'].lower()
+                        featureDict[('V', v)] = normalizeFeature(1, 0, 1)
+                featureDicts.append(featureDict)
+                caseMap.append((cas, i))
+    return (featureDicts, caseMap)
 
 if __name__ == "__main__":
     cases = data.getAllSavedCases()
     labeledTraining = findLabels(cases)
     readLabels(labeledTraining)
     print 'labeled cases are: ' + str([cas.name for cas in labeledTraining])
-    """
-    newcas = case.Case('6850872635911328292')
-    for i, sentence in enumerate(newcas.sentences):
-        print str(i) + ': ' + sentence
-    """
     unlabeledCases = filter(lambda x:x not in labeledTraining, cases)
     unlabeledTraining = unlabeledCases[:-2]
-    #clf = makeSVM(training)
-    #labelAllTraining(labeledTraining, unlabeledTraining)
-    loop = True
-    while loop:
-        loop = addNSummarySentences(labeledTraining, unlabeledTraining, n=20)
     training = labeledTraining + unlabeledTraining
     test = [unlabeledCases[-2], unlabeledCases[-1]]
-    print 'training summaries:'
-    for cas in training:
-        print 'training case ' + cas.name
-        for cls, linenos in cas.summary.iteritems():
-            print str(cls)
-            for lineno in linenos:
-                print cas.sentences[lineno]
+    for unused in range(100):
+        svmTraining = compressLabeledCases(training)
+        clf = makeSVM(svmTraining)
+        svmTesting, caseMap = getTestingFeatures(unlabeledTraining)
+        dfResults = clf.decision_function(v.transform(svmTesting))
+        winners, scores = votingAlgorithm(dfResults)
+        for i, winner in enumerate(winners):
+            print 'person ' + str(i+1)
+            winningCase, winningLine = caseMap[winner]
+            winningCase.summary[i+1].append(winningLine)
+            print 'Winner is line ' + str(winningLine) + ' from case ' + str(winningCase.name)
+            print winningCase.sentences[winningLine]
+            print winningCase.summary
+            print
+    print 'testing'
+    print
     for cas in test:
-        print 'testing on ' + cas.name
-        predictSummarySentences(cas, training)
-        print cas.summary
-        for person, linenos in cas.summary.iteritems():
-            print str(person)
-            for lineno in linenos:
-                print cas.sentences[lineno]
-    """
-    for cas in unlabeledTraining:
-        print cas.name
-        for i, sentence in enumerate(cas.sentences):
-            print str(i) + ': ' + sentence
-    """
+        print 'case ' + cas.name
+        for unused in range(3):
+            svmTraining = compressLabeledCases(training)
+            clf = makeSVM(svmTraining)
+            svmTesting, caseMap = getTestingFeatures([cas])
+            dfResults = clf.decision_function(v.transform(svmTesting))
+            winners, scores = votingAlgorithm(dfResults)
+            for i, winner in enumerate(winners):
+                winningCase, winningLine = caseMap[winner]
+                winningCase.summary[i+1].append(winningLine)
+        for person, summarySentences in cas.summary.iteritems():
+            print person
+            for summarySentence in summarySentences:
+                print cas.sentences[summarySentence]
