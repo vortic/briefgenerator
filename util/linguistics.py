@@ -503,26 +503,22 @@ def resolveAnaphora(cas):
         respondentNames.add(respondent.split(' ')[-1].lower())
     ret = {1:appellantNames, 2:respondentNames, 3:set(['trial', 'trial court', 'family court']), 4:set(['we', 'this court', 'appeal'])}
     a0s = mostCommonA0s(cas)
-    candidatesLeft = True
-    while candidatesLeft:
-        extraWords = {1:set(), 2:set(), 3:set(), 4:set()}
-        candidatesLeft = False
-        for a0, count in a0s.most_common():
-            if len(a0) > 2:
-                assigned = False
+    extraWords = {1:set(), 2:set(), 3:set(), 4:set()}
+    for a0, count in a0s.most_common():
+        if len(a0) > 2:
+            assigned = False
+            for key, value in ret.iteritems():
+                if a0 in value:
+                    assigned = True
+            if not assigned:
                 for key, value in ret.iteritems():
-                    if a0 in value:
-                        assigned = True
-                if not assigned:
-                    for key, value in ret.iteritems():
-                        for word in value:
-                            if word is not 'he' and word is not 'she':
-                                if word in ' ' + a0 or a0 in ' ' + word or word in a0 + ' ' or a0 in word + ' ':
-                                    extraWords[key].add(a0)
-                                    candidatesLeft = True
-        for key, value in extraWords.iteritems():
-            for word in value:
-                ret[key].add(word)
+                    for word in value:
+                        if word is not 'he' and word is not 'she':
+                            if word in ' ' + a0 or a0 in ' ' + word or word in a0 + ' ' or a0 in word + ' ':
+                                extraWords[key].add(a0)
+    for key, value in extraWords.iteritems():
+        for word in value:
+            ret[key].add(word)
     return ret
 
 if __name__ == "__main__":
