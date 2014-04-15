@@ -488,12 +488,32 @@ def getGenderPronoun(d, cas, person):
             return 'she'
         if gender == 1:
             return 'he'
-    return 'both unknown'
+    return None
 
 def resolveAnaphora(cas):
+    def closestWord(knownNames, trialCourtRoles):
+        closest = None
+        distance = 99999999
+        splitText = cas.string.lower().split(' ')
+        for i, word in enumerate(splitText):
+            for role in trialCourtRoles:
+                if word == role:
+                    for j in range(1, 3):
+                        for name in knownNames:
+                            if splitText[i+j] in name or name in splitText[i+j]:
+                                if j < distance:
+                                    #print splitText[i+j]
+                                    closest = role
+                                    distance = j
+                            if splitText[i-j] in name or name in splitText[i-j]:
+                                if j < distance:
+                                    #print splitText[i-j]
+                                    closest = role
+                                    distance = j
+        return closest
     appellant, respondent = getAppellantAndRespondent(cas)
-    appellantNames = set(['appellant', 'plaintiff', getGenderPronoun(d, cas, 'appellant')])
-    respondentNames = set(['respondent', 'defendant', getGenderPronoun(d, cas, 'respondent')])
+    appellantNames = set(['appellant'])
+    respondentNames = set(['respondent'])
     if len(appellant) > 1:
         appellantNames.add(appellant.split(' ')[0].lower())
     if len(respondent) > 1:
@@ -501,6 +521,14 @@ def resolveAnaphora(cas):
     if len(appellant) > 1 and len(respondent) > 1 and appellant.split(' ')[-1].lower() != respondent.split(' ')[-1].lower(): #Different last names
         appellantNames.add(appellant.split(' ')[-1].lower())
         respondentNames.add(respondent.split(' ')[-1].lower())
+    if closestWord(appellantNames, ['plaintiff', 'defendant']):
+        appellantNames.add(closestWord(appellantNames, ['plaintiff', 'defendant']))
+    if closestWord(respondentNames, ['plaintiff', 'defendant']):
+        respondentNames.add(closestWord(respondentNames, ['plaintiff', 'defendant']))
+    if getGenderPronoun(d, cas, 'appellant'):
+        appellantNames.add(getGenderPronoun(d, cas, 'appellant'))
+    if getGenderPronoun(d, cas, 'respondent'):
+        respondentNames.add(getGenderPronoun(d, cas, 'respondent'))
     ret = {1:appellantNames, 2:respondentNames, 3:set(['trial', 'trial court', 'family court']), 4:set(['we', 'this court', 'appeal'])}
     a0s = mostCommonA0s(cas)
     extraWords = {1:set(), 2:set(), 3:set(), 4:set()}

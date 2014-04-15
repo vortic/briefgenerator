@@ -2,7 +2,8 @@ import numpy as np
 import case, linguistics, data
 
 from sklearn.feature_extraction import DictVectorizer
-v = DictVectorizer(sparse=False) #Decision_function not supported for sparse SVM
+#v = DictVectorizer(sparse=False) #Decision_function not supported for sparse SVM
+v = DictVectorizer(sparse=True)
 
 def readLabels(trainingData):
     def convertWordToLabel(word):
@@ -55,7 +56,7 @@ def getFeaturesCompact(srlSentences):
     featureDicts = []
     for (srlSentence, indicators) in srlSentences:
         featureDict = {}
-        featureDict['sentenceComplexity'] = normalizeFeature(len(srlSentence), 0, 5)
+        #featureDict['sentenceComplexity'] = normalizeFeature(len(srlSentence), 0, 5)
         for clause in srlSentence:
         #for clause in [srlSentence[0]]:
             index = str(srlSentence.index(clause))
@@ -178,77 +179,22 @@ def getTestingFeatures(cases):
                 caseMap.append((cas, i))
     return (featureDicts, caseMap)
 
-if __name__ == "__main__":
-    #Just SVMS:
-    """
-    cases = data.getAllSavedCases()
-    labeledTraining = findLabels(cases)
-    readLabels(labeledTraining)
-    print 'labeled cases are: ' + str([cas.name for cas in labeledTraining])
-    unlabeledCases = filter(lambda x:x not in labeledTraining, cases)
-    unlabeledTraining = unlabeledCases[:-2]
+def labelCases(labeledTraining, unlabeledTraining, testing, numIterations=1000, numSummarySentences=10, debug=False):
+    print('Using ' + str(len(labeledTraining)) + ' labeled cases and ' + str(len(unlabeledTraining)) + 
+        ' unlabeled cases to label ' + str(len(testing)) + ' test cases')
     training = labeledTraining + unlabeledTraining
-    test = [unlabeledCases[-2], unlabeledCases[-1]]
-    for unused in range(100):
-        svmTraining = compressLabeledCases(training)
-        clf = makeSVM(svmTraining)
-        svmTesting, caseMap = getTestingFeatures(unlabeledTraining)
-        dfResults = clf.decision_function(v.transform(svmTesting))
-        winners = votingAlgorithm(dfResults)
-        for i, winner in enumerate(winners):
-            print 'person ' + str(i+1)
-            winningCase, winningLine = caseMap[winner]
-            winningCase.summary[i+1].append(winningLine)
-            print 'Winner is line ' + str(winningLine) + ' from case ' + str(winningCase.name)
-            print winningCase.sentences[winningLine]
-            print winningCase.summary
-            print
-    print 'testing'
-    print
-    for cas in test:
-        print 'case ' + cas.name
-        for unused in range(3):
-            svmTraining = compressLabeledCases(training)
-            clf = makeSVM(svmTraining)
-            svmTesting, caseMap = getTestingFeatures([cas])
-            dfResults = clf.decision_function(v.transform(svmTesting))
-            winners = votingAlgorithm(dfResults)
-            for i, winner in enumerate(winners):
-                winningCase, winningLine = caseMap[winner]
-                winningCase.summary[i+1].append(winningLine)
-        for person, summarySentences in cas.summary.iteritems():
-            print person
-            for summarySentence in summarySentences:
-                print cas.sentences[summarySentence]
-    """
-    #Just logistic regression:
-    """
-    cases = data.getAllSavedCases()
-    labeledTraining = findLabels(cases)
-    readLabels(labeledTraining)
-    print 'labeled cases are: ' + str([cas.name for cas in labeledTraining])
-    unlabeledCases = filter(lambda x:x not in labeledTraining, cases)
-    unlabeledTraining = unlabeledCases[:-2]
-    training = labeledTraining + unlabeledTraining
-    test = [unlabeledCases[-2], unlabeledCases[-1]]
-    for unused in range(100):
+    for unused in range(numIterations):
+        if unused % 100 == 0:
+            print 'Iteration ' + str(unused)
         neuronTraining = compressLabeledCases(training)
         clf = makeNeuron(neuronTraining)
         neuronTesting, caseMap = getTestingFeatures(unlabeledTraining)
         votes = clf.decision_function(v.transform(neuronTesting))
         for i, winner in enumerate(np.argmax(votes, axis=0)):
-            print 'person ' + str(i+1)
             winningCase, winningLine = caseMap[winner]
             winningCase.summary[i+1].append(winningLine)
-            print 'Winner is line ' + str(winningLine) + ' from case ' + str(winningCase.name)
-            print winningCase.sentences[winningLine]
-            print winningCase.summary
-            print
-    print 'testing'
-    print
-    for cas in test:
-        print 'case ' + cas.name
-        for unused in range(3):
+    for cas in testing:
+        for unused in range(numSummarySentences):
             neuronTraining = compressLabeledCases(training)
             clf = makeNeuron(neuronTraining)
             neuronTesting, caseMap = getTestingFeatures([cas])
@@ -256,58 +202,19 @@ if __name__ == "__main__":
             for i, winner in enumerate(np.argmax(votes, axis=0)):
                 winningCase, winningLine = caseMap[winner]
                 winningCase.summary[i+1].append(winningLine)
-        for person, summarySentences in cas.summary.iteritems():
-            print person
-            for summarySentence in summarySentences:
-                print cas.sentences[summarySentence]
-    """
-    #Both svms and logistic regression:
+        if debug:
+            print str(cas.name)
+            print cas.indicators
+            for person, summarySentences in cas.summary.iteritems():
+                print person
+                for summarySentence in summarySentences:
+                    print cas.sentences[summarySentence]
+
+if __name__ == "__main__":
     cases = data.getAllSavedCases()
     labeledTraining = findLabels(cases)
     readLabels(labeledTraining)
-    print 'labeled cases are: ' + str([cas.name for cas in labeledTraining])
     unlabeledCases = filter(lambda x:x not in labeledTraining, cases)
     unlabeledTraining = unlabeledCases[:-2]
-    training = labeledTraining + unlabeledTraining
-    test = [unlabeledCases[-2], unlabeledCases[-1]]
-    for unused in range(50):
-        clfInput = compressLabeledCases(training)
-        clf1 = makeNeuron(clfInput)
-        clf2 = makeSVM(clfInput)
-        clfTesting, caseMap = getTestingFeatures(unlabeledTraining)
-        winners1 = np.argmax(clf1.decision_function(v.transform(clfTesting)), axis=0)
-        winners2 = votingAlgorithm(clf2.decision_function(v.transform(clfTesting)))
-        for i, (winner1, winner2) in enumerate(zip(winners1, winners2)):
-            print 'person ' + str(i+1)
-            winningCase, winningLine = caseMap[winner1]
-            winningCase.summary[i+1].append(winningLine)
-            print 'Winner is line ' + str(winningLine) + ' from case ' + str(winningCase.name)
-            print winningCase.sentences[winningLine]
-            print winningCase.summary
-            print
-            if winner1 != winner2:
-                winningCase, winningLine = caseMap[winner2]
-                winningCase.summary[i+1].append(winningLine)
-                print 'Winner is line ' + str(winningLine) + ' from case ' + str(winningCase.name)
-                print winningCase.sentences[winningLine]
-                print winningCase.summary
-                print
-            else:
-                print 'SVM got same result as logistic regression'
-                print
-    print 'testing'
-    print
-    for cas in test:
-        print 'case ' + cas.name
-        for unused in range(3):
-            neuronTraining = compressLabeledCases(training)
-            clf = makeNeuron(neuronTraining)
-            neuronTesting, caseMap = getTestingFeatures([cas])
-            votes = clf.decision_function(v.transform(neuronTesting))
-            for i, winner in enumerate(np.argmax(votes, axis=0)):
-                winningCase, winningLine = caseMap[winner]
-                winningCase.summary[i+1].append(winningLine)
-        for person, summarySentences in cas.summary.iteritems():
-            print person
-            for summarySentence in summarySentences:
-                print cas.sentences[summarySentence]
+    testing = [unlabeledCases[-2], unlabeledCases[-1]]
+    labelCases(labeledTraining, unlabeledTraining, testing, debug=True)
