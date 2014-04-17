@@ -494,7 +494,8 @@ def resolveAnaphora(cas):
     def closestWord(knownNames, trialCourtRoles):
         closest = None
         distance = 99999999
-        splitText = cas.string.lower().split(' ')
+        #splitText = cas.string.lower().split(' ')
+        splitText = re.findall(r"[\w']+", cas.string.lower())
         for i, word in enumerate(splitText):
             for role in trialCourtRoles:
                 if word == role:
@@ -530,8 +531,15 @@ def resolveAnaphora(cas):
     if getGenderPronoun(d, cas, 'respondent'):
         respondentNames.add(getGenderPronoun(d, cas, 'respondent'))
     ret = {1:appellantNames, 2:respondentNames, 3:set(['trial', 'trial court', 'family court']), 4:set(['we', 'this court', 'appeal'])}
+    """
     a0s = mostCommonA0s(cas)
     extraWords = {1:set(), 2:set(), 3:set(), 4:set()}
+    dontAdd = {1:set(), 2:set(), 3:set(), 4:set()}
+    for key, names in ret.iteritems():
+        for i in range(1,5):
+            if i != key:
+                for word in names:
+                    dontAdd[i].add(word)
     for a0, count in a0s.most_common():
         if len(a0) > 2:
             assigned = False
@@ -543,10 +551,15 @@ def resolveAnaphora(cas):
                     for word in value:
                         if word is not 'he' and word is not 'she':
                             if word in ' ' + a0 or a0 in ' ' + word or word in a0 + ' ' or a0 in word + ' ':
-                                extraWords[key].add(a0)
+                                if word not in dontAdd[key]:
+                                    extraWords[key].add(a0)
+                                    for i in range(1,5):
+                                        if i != key:
+                                            dontAdd[i].add(a0)
     for key, value in extraWords.iteritems():
         for word in value:
             ret[key].add(word)
+    """
     return ret
 
 if __name__ == "__main__":
@@ -555,10 +568,12 @@ if __name__ == "__main__":
     for test in testSet:
         getRoleLabels(labeler, test)
     """
-    cases = data.getAllSavedCases()
+    #cases = data.getAllSavedCases()
+    cases = [case.Case('9679125436307421205')]
     for cas in cases:
         print cas.name
         resolveAnaphora(cas)
+        print cas.indicators
         print
         """
         appellant, respondent = getAppellantAndRespondent(cas)

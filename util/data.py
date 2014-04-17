@@ -145,6 +145,19 @@ def getNGoogleCites(cas, n): #Approximately n
         start += 10
     return allCites
 
+def getAboutCases(cas):
+    url = 'http://scholar.google.com/scholar_case?about=' + cas.googleURL
+    header = getHeader()
+    req = urllib2.Request(url, None, header)
+    time.sleep(random.randint(2, 10))
+    html = urllib2.urlopen(req).read()
+    urlRegex = r'scholar_case\?case=([0-9]+)'
+    allLinks = []
+    for result in re.finditer(urlRegex, html):
+        for link in result.groups():
+            allLinks.append(link)
+    return allLinks
+
 def getAllSavedCases():
     ret = []
     for caseName in os.listdir('cases'):

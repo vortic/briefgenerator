@@ -2,6 +2,7 @@ import numpy as np
 import case, linguistics, data
 
 from sklearn.feature_extraction import DictVectorizer
+from sklearn.linear_model import LogisticRegression
 #v = DictVectorizer(sparse=False) #Decision_function not supported for sparse SVM
 v = DictVectorizer(sparse=True)
 
@@ -25,8 +26,6 @@ def readLabels(trainingData):
                 ret.append((i, 0))
         """
         return ret
-    labeledTraining = []
-    unlabeledTraining = []
     for cas in trainingData:
         folderName = cas.googleURL
         try:
@@ -50,154 +49,80 @@ def findLabels(trainingData):
             pass
     return labeledData
 
-def getFeaturesCompact(srlSentences):
+def getFeatures(indicators, srlSentence):
     def normalizeFeature(value, mn, mx):
         return (value-mn)/(mx-mn)
-    featureDicts = []
-    for (srlSentence, indicators) in srlSentences:
-        featureDict = {}
-        #featureDict['sentenceComplexity'] = normalizeFeature(len(srlSentence), 0, 5)
-        for clause in srlSentence:
-        #for clause in [srlSentence[0]]:
-            index = str(srlSentence.index(clause))
-            if 'A0' in clause and 'V' in clause:
-                a0 = clause['A0'].lower()
-                if a0 in indicators[1]:
-                    #featureDict['appellant', index] = 1
-                    featureDict['appellant'] = normalizeFeature(1, 0, 1)
-                if a0 in indicators[2]:
-                    #featureDict['respondent', index] = 1
-                    featureDict['respondent'] = normalizeFeature(1, 0, 1)
-                if a0 in indicators[3]:
-                    #featureDict['trial court', index] = 1
-                    featureDict['trial court'] = normalizeFeature(1, 0, 1)
-                if a0 in indicators[4]:
-                    #featureDict['we', index] = 1
-                    featureDict['we'] = normalizeFeature(1, 0, 1)
-                v = clause['V'].lower()
-                featureDict[('V', v)] = normalizeFeature(1, 0, 1)
-        featureDicts.append(featureDict)
-    return featureDicts
+    featureDict = {}
+    for clause in srlSentence:
+        index = str(srlSentence.index(clause))
+        if 'A0' in clause and 'V' in clause:
+            a0 = clause['A0'].lower()
+            if a0 in indicators[1]:
+                #featureDict['appellant', index] = 1
+                featureDict['appellant'] = normalizeFeature(1, 0, 1)
+            if a0 in indicators[2]:
+                #featureDict['respondent', index] = 1
+                featureDict['respondent'] = normalizeFeature(1, 0, 1)
+            if a0 in indicators[3]:
+                #featureDict['trial court', index] = 1
+                featureDict['trial court'] = normalizeFeature(1, 0, 1)
+            if a0 in indicators[4]:
+                #featureDict['we', index] = 1
+                featureDict['we'] = normalizeFeature(1, 0, 1)
+            v = clause['V'].lower()
+            featureDict[('V', v)] = normalizeFeature(1, 0, 1)
+        #if 'A1' in clause:
+        #    featureDict[clause['A1'].lower()] = normalizeFeature(1, 0, 1)
+    return featureDict
 
-def makeSVM(labeledSrlSentences, prob=False):
-    def getXAndY():
-        srlSentences = []
-        Y = []
-        #print labeledSrlSentences
-        for (casNum, label, srlSentence, cas) in labeledSrlSentences:
-            #print label
-            #print srlSentence
-            srlSentences.append((cas.srlSentences[srlSentence], cas.indicators))
-            Y.append(label)
-        XDicts = getFeaturesCompact(srlSentences)
-        X = v.fit_transform(XDicts)
-        return (X, Y)
-    from sklearn import svm
-    (X, Y) = getXAndY()
-    clf = svm.SVC(probability=prob) #one against one
-    clf.fit(X, Y)
-    return clf
-
-def makeNeuron(labeledSrlSentences, regParam=10, pnlty='l1', tolerance=0.01):
-    def getXAndY():
-        srlSentences = []
-        Y = []
-        #print labeledSrlSentences
-        for (casNum, label, srlSentence, cas) in labeledSrlSentences:
-            #print label
-            #print srlSentence
-            srlSentences.append((cas.srlSentences[srlSentence], cas.indicators))
-            Y.append(label)
-        XDicts = getFeaturesCompact(srlSentences)
-        X = v.fit_transform(XDicts)
-        return (X, Y)
-    from sklearn.linear_model import LogisticRegression
-    (X, Y) = getXAndY()
-    clf = LogisticRegression(C=regParam, penalty=pnlty, tol=tolerance)
-    clf.fit(X, Y)
-    return clf
-
-def votingAlgorithm(dfResults, numClasses=4):
-    votes = np.zeros((len(dfResults), numClasses))
-    for k in range(len(dfResults)):
-        dfResult = dfResults[k]
-        p = 0
-        for i in range(numClasses):
-            for j in range(i + 1, numClasses):
-                if dfResult[p] > 0:
-                    #votes[k, i] += 1
-                    votes[k, i] += dfResult[p]
-                else:
-                    #votes[k, j] += 1
-                    votes[k, j] -= dfResult[p]
-                p += 1
-    #return (np.argmax(votes, axis=0), np.amax(votes, axis=0))
-    return np.argmax(votes, axis=0)
-
-def compressLabeledCases(cases):
-    ret = []
-    for i, cas in enumerate(cases):
-        for person, summarySentences in cas.summary.iteritems():
-            for summarySentence in summarySentences:
-                ret.append((i, person, summarySentence, cas))
-    return ret
-
-def getTestingFeatures(cases):
-    def normalizeFeature(value, mn, mx):
-        return (value-mn)/(mx-mn)
-    featureDicts = []
+def getFeaturesBatch(cases):
     caseMap = []
+    featureDicts = []
     for cas in cases:
         for i, srlSentence in enumerate(cas.srlSentences):
-            featureDict = {}
             add = True
             for person, summarySentences in cas.summary.iteritems():
                 for summarySentence in summarySentences:
                     if i == summarySentence:
                         add = False
             if add:
-                featureDict['sentenceComplexity'] = normalizeFeature(len(srlSentence), 0, 5)
-                for clause in srlSentence:
-                    index = str(srlSentence.index(clause))
-                    if 'A0' in clause and 'V' in clause:
-                        a0 = clause['A0'].lower()
-                        if a0 in cas.indicators[1]:
-                            #featureDict['appellant', index] = 1
-                            featureDict['appellant'] = normalizeFeature(1, 0, 1)
-                        if a0 in cas.indicators[2]:
-                            #featureDict['respondent', index] = 1
-                            featureDict['respondent'] = normalizeFeature(1, 0, 1)
-                        if a0 in cas.indicators[3]:
-                            #featureDict['trial court', index] = 1
-                            featureDict['trial court'] = normalizeFeature(1, 0, 1)
-                        if a0 in cas.indicators[4]:
-                            #featureDict['we', index] = 1
-                            featureDict['we'] = normalizeFeature(1, 0, 1)
-                        v = clause['V'].lower()
-                        featureDict[('V', v)] = normalizeFeature(1, 0, 1)
-                featureDicts.append(featureDict)
+                featureDicts.append(getFeatures(cas.indicators, srlSentence))
                 caseMap.append((cas, i))
-    return (featureDicts, caseMap)
+    return featureDicts, caseMap
 
-def labelCases(labeledTraining, unlabeledTraining, testing, numIterations=1000, numSummarySentences=10, debug=False):
+def makeNeuron(cases, regParam=10, pnlty='l1', tolerance=0.01):
+    def getXAndY():
+        XDicts = []
+        Y = []
+        for cas in cases:
+            for label, summarySentences in cas.summary.iteritems():
+                for summarySentence in summarySentences:
+                    XDicts.append(getFeatures(cas.indicators, cas.srlSentences[summarySentence]))
+                    Y.append(label)
+        X = v.fit_transform(XDicts)
+        return (X, Y)
+    (X, Y) = getXAndY()
+    clf = LogisticRegression(C=regParam, penalty=pnlty, tol=tolerance)
+    clf.fit(X, Y)
+    return clf
+
+def labelCases(labeledTraining, unlabeledTraining, testing, numIterations=500, numSummarySentences=10, debug=False):
     print('Using ' + str(len(labeledTraining)) + ' labeled cases and ' + str(len(unlabeledTraining)) + 
         ' unlabeled cases to label ' + str(len(testing)) + ' test cases')
     training = labeledTraining + unlabeledTraining
     for unused in range(numIterations):
         if unused % 100 == 0:
             print 'Iteration ' + str(unused)
-        neuronTraining = compressLabeledCases(training)
-        clf = makeNeuron(neuronTraining)
-        neuronTesting, caseMap = getTestingFeatures(unlabeledTraining)
+        clf = makeNeuron(training)
+        neuronTesting, caseMap = getFeaturesBatch(unlabeledTraining)
         votes = clf.decision_function(v.transform(neuronTesting))
         for i, winner in enumerate(np.argmax(votes, axis=0)):
             winningCase, winningLine = caseMap[winner]
             winningCase.summary[i+1].append(winningLine)
     for cas in testing:
         for unused in range(numSummarySentences):
-            neuronTraining = compressLabeledCases(training)
-            clf = makeNeuron(neuronTraining)
-            neuronTesting, caseMap = getTestingFeatures([cas])
+            clf = makeNeuron(training)
+            neuronTesting, caseMap = getFeaturesBatch([cas])
             votes = clf.decision_function(v.transform(neuronTesting))
             for i, winner in enumerate(np.argmax(votes, axis=0)):
                 winningCase, winningLine = caseMap[winner]
