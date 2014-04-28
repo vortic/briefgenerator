@@ -135,11 +135,59 @@ def labelCases(labeledTraining, unlabeledTraining, testing, numIterations=500, n
                 for summarySentence in summarySentences:
                     print cas.sentences[summarySentence]
 
+def documentTopicModel(cases, log=True):
+    if log:
+        import logging
+        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
+    from gensim import corpora, models
+    stoplist = set('for a of the and to in'.split())
+    texts = [[word for word in cas.string.lower().split() if word not in stoplist]
+        for cas in cases]
+    all_tokens = sum(texts, [])
+    tokens_once = set(word for word in set(all_tokens) if all_tokens.count(word) == 1)
+    texts = [[word for word in text if word not in tokens_once]
+        for text in texts]
+    dictionary = corpora.Dictionary(texts)
+    corpus = [dictionary.doc2bow(text) for text in texts]
+    tfidf = models.TfidfModel(corpus)
+    corpus_tfidf = tfidf[corpus]
+    #lsi = models.LsiModel(corpus_tfidf, id2word=dictionary, num_topics=15)
+    #corpus_lsi = lsi[corpus_tfidf]
+    model = models.ldamodel.LdaModel(corpus_tfidf, id2word=dictionary, num_topics=15)
+    corpus_lda = model[corpus_tfidf]
+
+def paragraphTopicModel(cas, log=True):
+    if log:
+        import logging
+        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
+    from gensim import corpora, models
+    stoplist = set('for a of the and to in'.split())
+    texts = [[word for word in paragraph.split() if word not in stoplist]
+        for paragraph in cas.string.lower().split('\r\n')]
+    all_tokens = sum(texts, [])
+    tokens_once = set(word for word in set(all_tokens) if all_tokens.count(word) == 1)
+    texts = [[word for word in text if word not in tokens_once]
+        for text in texts]
+    dictionary = corpora.Dictionary(texts)
+    corpus = [dictionary.doc2bow(text) for text in texts]
+    tfidf = models.TfidfModel(corpus)
+    corpus_tfidf = tfidf[corpus]
+    #lsi = models.LsiModel(corpus_tfidf, id2word=dictionary, num_topics=15)
+    #corpus_lsi = lsi[corpus_tfidf]
+    model = models.ldamodel.LdaModel(corpus_tfidf, id2word=dictionary, num_topics=15)
+    corpus_lda = model[corpus_tfidf]
+
 if __name__ == "__main__":
-    cases = data.getAllSavedCases()
+    cases = data.getAllSavedCases(senna=False)
+    wordVecTest(cases)
+    #documentTopicModel(cases)
+    #for cas in cases:
+    #    paragraphTopicModel(cas)
+    """
     labeledTraining = findLabels(cases)
     readLabels(labeledTraining)
     unlabeledCases = filter(lambda x:x not in labeledTraining, cases)
     unlabeledTraining = unlabeledCases[:-2]
     testing = [unlabeledCases[-2], unlabeledCases[-1]]
     labelCases(labeledTraining, unlabeledTraining, testing, debug=True)
+    """
