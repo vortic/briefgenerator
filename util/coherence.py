@@ -2,6 +2,7 @@ import case, data, learning
 import random
 import collections
 import numpy as np
+import gensim
 
 def coherentSummary(argumentSentences, allSentences, allSrlSentences):
     G = generateCoherenceGraph(argumentSentences, allSentences, allSrlSentences)
@@ -9,31 +10,43 @@ def coherentSummary(argumentSentences, allSentences, allSrlSentences):
 def generateCoherenceGraph(argumentSentences, allSentences, allSrlSentences):
     #Find all chains such that m-coherence is at least tau
     def findShortChains(m=4, k=1):
-        def importantWords(chain, numWords=5):
-            wordCounter = collections.Counter()
-            verbsToConsider = set()
-            A0sToConsider = set()
-            ret = []
-            for srlSentence in chain:
-                for clause in srlSentence:
-                    if 'A0' in clause:
-                        A0sToConsider.add(clause['A0'])
-                    if 'V' in clause:
-                        verbsToConsider.add(clause['V'])
-            for srlSentence in allSrlSentences:
-                for clause in srlSentence:
-                    if 'A0' in clause and clause['A0'] in A0sToConsider:
-                        wordCounter[clause['A0']] += 1
-                    if 'V' in clause and clause['V'] in verbsToConsider:
-                        wordCounter[clause['V']] += 1
-            for word, count in wordCounter.most_common(numWords):
-                ret.append(word)
-            return ret
+        def importantWords(chain, numWords=5, srl=False):
+            if srl:
+                wordCounter = collections.Counter()
+                verbsToConsider = set()
+                A0sToConsider = set()
+                ret = []
+                for srlSentence in chain:
+                    for clause in srlSentence:
+                        if 'A0' in clause:
+                            A0sToConsider.add(clause['A0'])
+                        if 'V' in clause:
+                            verbsToConsider.add(clause['V'])
+                for srlSentence in allSrlSentences:
+                    for clause in srlSentence:
+                        if 'A0' in clause and clause['A0'] in A0sToConsider:
+                            wordCounter[clause['A0']] += 1
+                        if 'V' in clause and clause['V'] in verbsToConsider:
+                            wordCounter[clause['V']] += 1
+                for word, count in wordCounter.most_common(numWords):
+                    ret.append(word)
+                return ret
+            else:
+                from gensim import models
+                model = gensim.models.Word2Vec.load('models/word2vec/unigramModel')
+                for sentence in chain:
+                    for word in sentence.split():
+                        print word
+                        try:
+                            print model[word]
+                        except:
+                            pass
         for i in range(k):
             possibleEndpoints = argumentSentences[:]
             d1 = random.choice(possibleEndpoints)
             possibleEndpoints.remove(d1)
             dm = random.choice(possibleEndpoints)
+            print [d1, dm]
             impWords = importantWords([d1, dm])
             model = [0]*len(impWords)
             print d1
@@ -70,7 +83,7 @@ if __name__ == "__main__":
         for person, summarySentences in cas.summary.iteritems():
             personSentences = []
             for sentence in summarySentences:
-                personSentences.append(cas.srlSentences[sentence])
+                personSentences.append(cas.sentences[sentence])
             d[person] = personSentences
-        for person, summarySrlSentences in d.iteritems():
-            print coherentSummary(summarySrlSentences, cas.sentences, cas.srlSentences)
+        for person, summarySentences in d.iteritems():
+            print coherentSummary(summarySentences, cas.sentences, cas.srlSentences)
