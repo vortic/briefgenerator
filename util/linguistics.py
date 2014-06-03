@@ -12,6 +12,12 @@ from nltk.stem.porter import PorterStemmer
 from genderator.detector import *
 d = Detector()
 
+trainer = nltk.tokenize.punkt.PunktSentenceTokenizer()
+trainer.train("GoogleCases.txt")
+
+def getTokenizer():
+    return trainer
+
 def getSubject(sentence):
     """
     The subject is the noun phrase that is the child of S (the sentence) and the sibling of VP

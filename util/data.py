@@ -121,6 +121,9 @@ def getGoogleCase(cas):
             print 'Could not cache case'
         return ret
 
+def tokenize(string):
+    return trainer.tokenize(string)
+
 def getNGoogleCites(cas, n): #Approximately n
     def getTenLinks(start=0):
         url = 'http://scholar.google.com/scholar?cites=' + cas.googleURL + \
