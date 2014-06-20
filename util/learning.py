@@ -10,7 +10,9 @@ from sklearn.preprocessing import binarize
 v = DictVectorizer(sparse=True)
 import gensim
 #model = gensim.models.Word2Vec.load('models/word2vec/unigramModel')
-model = gensim.models.Word2Vec.load('models/word2vec/srlModel')
+#model = gensim.models.Word2Vec.load('models/word2vec/srlModel')
+#model = gensim.models.ldamodel.LdaModel.load('models/lda/srlTopicModel')
+model = wordVector.topicModelWordVec()
 
 def readLabels(trainingData, typ):
     def convertWordToLabel(word):
@@ -20,7 +22,7 @@ def readLabels(trainingData, typ):
         ret = []
         importantIndices = []
         for lineAndLabel in summary.split('\n'):
-            line, englishLabel = lineAndLabel.split(' ')
+            line, englishLabel = lineAndLabel.split()
             label = convertWordToLabel(englishLabel)
             line = int(line)
             importantIndices.append(line)
@@ -88,18 +90,15 @@ def getFeatures(srlSentence):
     def normalizeFeatures(values, mn, mx):
         return np.divide(np.subtract(values, mn), float(mx-mn))
     featureDict = {}
-    i = 0
-    for clause in srlSentence:
+    for level, clause in enumerate(srlSentence):
         for (role, text) in clause.iteritems():
             try:
                 representation = model[str((role, text))]
-                representation = binarize(representation)
+                #representation = binarize(representation)
                 representation = normalizeFeatures(representation, 0, 1)
                 for j, vectorEntry in enumerate(representation):
-                    featureDict[str(i*len(representation)+j)] = vectorEntry
-                i += 1
+                    featureDict[(level, role, j)] = vectorEntry
             except KeyError:
-                i += 1
                 continue
     return featureDict
 
@@ -139,6 +138,7 @@ def makeNeuron(cases, regParam=10, pnlty='l1', tolerance=0.01):
 def labelCases(labeledTraining, unlabeledTraining, testing, numIterations=1, minibatchSize = 20, numSummarySentences=10, debug=False):
     print('Using ' + str(len(labeledTraining)) + ' labeled cases and ' + str(len(unlabeledTraining)) + 
         ' unlabeled cases to label ' + str(len(testing)) + ' test cases')
+    """
     for index in range(numIterations):
         if index % 100 == 0:
             print 'Iteration ' + str(index)
@@ -167,6 +167,7 @@ def labelCases(labeledTraining, unlabeledTraining, testing, numIterations=1, min
                     if debug:
                         print 'person:' + str(person+1) + ' winner: ' + str(winner)
                         print winningCase.sentences[winningLine]
+    """
     training = labeledTraining + unlabeledTraining
     for cas in testing:
         for unused in range(numSummarySentences):
@@ -227,15 +228,46 @@ def paragraphTopicModel(cas, log=True):
     lda = models.ldamodel.LdaModel(corpus_tfidf, id2word=dictionary, num_topics=15, alpha='auto', eval_every=5)
     corpus_lda = lda[corpus_tfidf]
 
+def srlTopicModel2(cases, log=True):
+    if log:
+        import logging
+        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
+    from gensim import corpora, models
+    #stoplist = set('for a of the and to in cal. n.e.2d ( .) n.w.2d cal.rptr.2d n.j.'.split())
+    texts = []
+    for cas in cases:
+        srls = []
+        for srlSentence in cas.srlSentences:
+            for clause in srlSentence:
+                for role, text in clause.iteritems():
+                    srls.append(str((role, text)))
+        texts.append(srls)
+    #texts = [[word for word in cas.string.lower().split() if word not in stoplist]
+    #    for cas in cases]
+    """
+    all_tokens = sum(texts, [])
+    tokens_n_times = set(word for word in set(all_tokens) if all_tokens.count(word) <= 10)
+    texts = [[word for word in text if word not in tokens_n_times]
+        for text in texts]
+    """
+    dictionary = corpora.Dictionary(texts)
+    corpus = [dictionary.doc2bow(text) for text in texts]
+    tfidf = models.TfidfModel(corpus)
+    corpus_tfidf = tfidf[corpus]
+    #lsi = models.LsiModel(corpus_tfidf, id2word=dictionary, num_topics=15)
+    #corpus_lsi = lsi[corpus_tfidf]
+    lda = models.ldamodel.LdaModel(corpus_tfidf, id2word=dictionary, num_topics=15, alpha='auto', eval_every=5)
+    corpus_lda = lda[corpus_tfidf]
+
 if __name__ == "__main__":
     cases = data.getAllSavedCases(senna=True)
     print 'dataset in memory'
+    #srlTopicModel(cases, save=True)
     #documentTopicModel(cases)
     #for cas in cases:
     #    paragraphTopicModel(cas)
     labeledTraining = findLabels(cases)
     #readLabels(labeledTraining)
     unlabeledCases = filter(lambda x:x not in labeledTraining, cases)
-    unlabeledTraining = unlabeledCases[:-2]
-    testing = [unlabeledCases[-2], unlabeledCases[-1]]
-    labelCases(labeledTraining, unlabeledTraining, testing, debug=True)
+    testing = unlabeledCases
+    labelCases(labeledTraining, [], unlabeledCases, debug=True)

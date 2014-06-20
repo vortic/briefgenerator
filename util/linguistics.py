@@ -88,27 +88,22 @@ def getRoleLabels(cas, stem=True):
     return ret 
 
 def getSrlSentences(cas):
-    stemmer = PorterStemmer()
+    from collections import OrderedDict
     sennaMatrix = cas.sennaMatrix
-    justVerbs = []
     ret = []
-    for sentence in sennaMatrix:
-        verbSentence = []
-        for sennaRow in sentence:
-            if sennaRow[1] != '-':
-                verbSentence.append(stemmer.stem(sennaRow[1]))
-        justVerbs.append(verbSentence)
-    for sentence, verbSentence in zip(sennaMatrix, justVerbs):
-        numVerbs = len(verbSentence)
+    for i in range(len(sennaMatrix)):
         srlSentence = []
-        for i in range(0, numVerbs):
-            clause = {}
-            for sennaRow in sentence:
-                if re.match('[SBIE]-(.*)', sennaRow[i+2]):
-                    role = re.match('[SBIE]-(.*)', sennaRow[i+2]).group(1)
-                    if not role in clause:
-                        clause[role] = ''
-                    clause[role] = ' '.join([clause[role], sennaRow[0]]).strip()
+        numVerbs = len(sennaMatrix[i][0][2:])
+        firstColumn = [sennaMatrix[i][j][0] for j in range(len(sennaMatrix[i]))]
+        for verb in range(numVerbs):
+            clause = OrderedDict()
+            column = [sennaMatrix[i][j][verb+2] for j in range(len(sennaMatrix[i]))]
+            for word, role in zip(firstColumn, column):
+                if re.match('[SBIE]-(.*)', role):
+                    realRole = re.match('[SBIE]-(.*)', role).group(1)
+                    if not realRole in clause:
+                        clause[realRole] = ''
+                    clause[realRole] = ' '.join([clause[realRole], word]).strip()
             srlSentence.append(clause)
         ret.append(srlSentence)
     return ret
