@@ -11,8 +11,9 @@ v = DictVectorizer(sparse=True)
 import gensim
 #model = gensim.models.Word2Vec.load('models/word2vec/unigramModel')
 #model = gensim.models.Word2Vec.load('models/word2vec/srlModel')
-#model = gensim.models.ldamodel.LdaModel.load('models/lda/srlTopicModel')
-model = wordVector.topicModelWordVec()
+#model = wordVector.topicModelWordVec()
+#model = gensim.models.Word2Vec.load('models/word2vec/srlBigramModel')
+num2Person = {1:'Appellant', 2:'Respondent', 3:'Trial Court', 4:'We'}
 
 def readLabels(trainingData, typ):
     def convertWordToLabel(word):
@@ -69,12 +70,11 @@ def findLabels(trainingData):
             pass
     return labeledData
 
-"""
-def getFeatures(splitSentence):
+def getFeaturesUnigrams(sentence):
     def normalizeFeatures(values, mn, mx):
         return np.divide(np.subtract(values, mn), float(mx-mn))
     featureDict = {}
-    for i, word in enumerate(splitSentence):
+    for i, word in enumerate(sentence.split()):
         try:
             representation = model[word]
             representation = binarize(representation)
@@ -84,9 +84,25 @@ def getFeatures(splitSentence):
         except KeyError:
             continue
     return featureDict
-"""
 
-def getFeatures(srlSentence):
+def getFeaturesBigrams(sentence):
+    def normalizeFeatures(values, mn, mx):
+        return np.divide(np.subtract(values, mn), float(mx-mn))
+    featureDict = {}
+    sentence = sentence.split()
+    bigramSentence = [b for b in zip(sentence[:-1], sentence[1:])]
+    for i, (w1, w2) in enumerate(bigramSentence):
+        try:
+            representation = model[w1 + '_' + w2]
+            representation = binarize(representation)
+            representation = normalizeFeatures(representation, 0, 1)
+            for j, vectorEntry in enumerate(representation):
+                featureDict[str(i*len(representation)+j)] = vectorEntry
+        except KeyError:
+            continue
+    return featureDict
+
+def getFeaturesSrl(srlSentence):
     def normalizeFeatures(values, mn, mx):
         return np.divide(np.subtract(values, mn), float(mx-mn))
     featureDict = {}
@@ -102,31 +118,58 @@ def getFeatures(srlSentence):
                 continue
     return featureDict
 
-def getFeaturesBatch(cases):
-    caseMap = []
-    featureDicts = []
-    for cas in cases:
-        for i, sentence in enumerate(cas.srlSentences):
-            add = True
-            if i%100 == 0:
-                print 'features ' + str(i)
-            for person, summarySentences in cas.srlSummary.iteritems():
-                for summarySentence in summarySentences:
-                    if i == summarySentence:
-                        add = False
-            if add:
-                featureDicts.append(getFeatures(sentence))
-                caseMap.append((cas, i))
-    return featureDicts, caseMap
+def getFeaturesSrlBigrams(srlSentence):
+    def normalizeFeatures(values, mn, mx):
+        return np.divide(np.subtract(values, mn), float(mx-mn))
+    featureDict = {}
+    newSentence = []
+    for level, clause in enumerate(srlSentence):
+        for (role, text) in clause.iteritems():
+            newSentence.append((str((role, text)), level))
+    bigramSentence = [b for b in zip(newSentence[:-1], newSentence[1:])]
+    for (w1, l1), (w2, l2) in bigramSentence:
+        r1, word1 = eval(w1)
+        r2, word2 = eval(w2)
+        if l1 == l2:
+            try:
+                representation = model[w1 + '_' + w2]
+                representation = binarize(representation)
+                representation = normalizeFeatures(representation, 0, 1)
+                for j, vectorEntry in enumerate(representation):
+                    featureDict[(l1, r1, r2, j)] = vectorEntry
+            except KeyError:
+                continue
+    return featureDict
 
-def makeNeuron(cases, regParam=10, pnlty='l1', tolerance=0.01):
+def getFeaturesGeneric(sentence, srlSentence, feature):
+    featureDict = {}
+    if feature == 'srl' or feature == 'srlTopicModel' or feature == 'srlLSI':
+        return getFeaturesSrl(srlSentence)
+    elif feature == 'unigrams':
+        return getFeaturesUnigrams(sentence)
+    elif feature == 'bigrams':
+        return getFeaturesBigrams(sentence)
+    elif feature == 'srlBigrams':
+        return getFeaturesSrlBigrams(srlSentence)
+    else:
+        print 'Error: feature ' + feature + ' not implemented'
+
+def getFeaturesBatch(cas, feature):
+    featureDicts = []
+    for i, (sentence, srlSentence) in enumerate(zip(cas.sentences, cas.srlSentences)):
+        if i%100 == 0:
+            print 'sentence ' + str(i)
+        featureDicts.append(getFeaturesGeneric(sentence, srlSentence, feature))
+    return featureDicts
+
+def makeNeuron(cases, feature, regParam=10, pnlty='l1', tolerance=0.01):
     def getXAndY():
         XDicts = []
         Y = []
         for cas in cases:
             for label, summarySentences in cas.srlSummary.iteritems():
                 for summarySentence in summarySentences:
-                    XDicts.append(getFeatures(cas.srlSentences[summarySentence]))
+                    XDicts.append(getFeaturesGeneric(cas.sentences[summarySentence], cas.srlSentences[summarySentence], feature))
                     Y.append(label)
         X = v.fit_transform(XDicts)
         return (X, Y)
@@ -135,129 +178,66 @@ def makeNeuron(cases, regParam=10, pnlty='l1', tolerance=0.01):
     clf.fit(X, Y)
     return clf
 
-def labelCases(labeledTraining, unlabeledTraining, testing, numIterations=1, minibatchSize = 20, numSummarySentences=10, debug=False):
-    print('Using ' + str(len(labeledTraining)) + ' labeled cases and ' + str(len(unlabeledTraining)) + 
-        ' unlabeled cases to label ' + str(len(testing)) + ' test cases')
-    """
-    for index in range(numIterations):
-        if index % 100 == 0:
-            print 'Iteration ' + str(index)
-        a, b = index%len(cases), (index+minibatchSize)%len(unlabeledTraining)
-        training = labeledTraining
-        if b > a:
-            training += unlabeledTraining[a:b]
-        else:
-            training += unlabeledTraining[0:minibatchSize]
-        print 'training set of size ' + str(len(training))
-        clf = makeNeuron(training)
-        print 'made classifier'
-        neuronTesting, caseMap = getFeaturesBatch(training)
-        print 'got features'
-        votes = clf.decision_function(v.transform(neuronTesting))
-        print 'got decision function'
-        for _ in range(minibatchSize):
-            for person in range(len(votes[0])):
-                scores = [votes[index][person] for index in range(len(votes))]
-                scores.sort()
-                bestScores = scores[-minibatchSize:]
-                winners = [np.where(votes==score)[0][0] for score in bestScores]
-                for winner in winners:
-                    winningCase, winningLine = caseMap[winner]
-                    winningCase.srlSummary[person+1].append(winningLine)
-                    if debug:
-                        print 'person:' + str(person+1) + ' winner: ' + str(winner)
-                        print winningCase.sentences[winningLine]
-    """
-    training = labeledTraining + unlabeledTraining
-    for cas in testing:
-        for unused in range(numSummarySentences):
-            clf = makeNeuron(training)
-            neuronTesting, caseMap = getFeaturesBatch([cas])
+def f1Score(predictedIndices, desiredIndices):
+    relevantCount = 0.0
+    for index in predictedIndices:
+        if index in desiredIndices:
+            relevantCount += 1
+    precision = relevantCount/len(predictedIndices)
+    recall = relevantCount/len(desiredIndices)
+    print 'precision: ' + str(precision)
+    print 'recall: ' + str(recall)
+    f1Score = 2.0*(precision * recall)/(precision + recall)
+    print 'f1 score ' + str(f1Score)
+    return f1Score
+
+def labelCases(training, testing, features, numSummarySentences=10, debug=False):
+    print('Using ' + str(len(training)) + ' labeled cases to label ' + str(len(testing)) + ' test cases')
+    for feature in features:
+        global model
+        if feature == 'unigrams':
+            model = gensim.models.Word2Vec.load('models/word2vec/unigramModel')
+        if feature == 'bigrams':
+            model = gensim.models.Word2Vec.load('models/word2vec/bigramModel')
+        if feature == 'srl':
+            model = gensim.models.Word2Vec.load('models/word2vec/srlModel')
+        if feature == 'srlBigrams':
+            model = gensim.models.Word2Vec.load('models/word2vec/srlBigramModel')
+        if feature == 'srlTopicModel':
+            model = wordVector.topicModelWordVec()
+        if feature == 'srlLSI':
+            model = wordVector.LSIWordVec()
+        print 'Using features: ' + feature
+        clf = makeNeuron(training, feature)
+        for cas in testing:
+            print cas.name
+            neuronTesting = getFeaturesBatch(cas, feature)
             votes = clf.decision_function(v.transform(neuronTesting))
-            for i, winner in enumerate(np.argmax(votes, axis=0)):
-                winningCase, winningLine = caseMap[winner]
-                winningCase.srlSummary[i+1].append(winningLine)
-        if debug:
-            print str(cas.name)
-            for person, summarySentences in cas.srlSummary.iteritems():
-                print person
-                for summarySentence in summarySentences:
-                    print cas.sentences[summarySentence]
-
-def documentTopicModel(cases, log=True):
-    if log:
-        import logging
-        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
-    from gensim import corpora, models
-    stoplist = set('for a of the and to in cal. n.e.2d ( .) n.w.2d cal.rptr.2d n.j.'.split())
-    texts = [[word for word in cas.string.lower().split() if word not in stoplist]
-        for cas in cases]
-    """
-    all_tokens = sum(texts, [])
-    tokens_n_times = set(word for word in set(all_tokens) if all_tokens.count(word) <= 10)
-    texts = [[word for word in text if word not in tokens_n_times]
-        for text in texts]
-    """
-    dictionary = corpora.Dictionary(texts)
-    corpus = [dictionary.doc2bow(text) for text in texts]
-    tfidf = models.TfidfModel(corpus)
-    corpus_tfidf = tfidf[corpus]
-    #lsi = models.LsiModel(corpus_tfidf, id2word=dictionary, num_topics=15)
-    #corpus_lsi = lsi[corpus_tfidf]
-    lda = models.ldamodel.LdaModel(corpus_tfidf, id2word=dictionary, num_topics=1, alpha='auto', eval_every=5)
-    corpus_lda = lda[corpus_tfidf]
-
-def paragraphTopicModel(cas, log=True):
-    if log:
-        import logging
-        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
-    from gensim import corpora, models
-    stoplist = set('for a of the and to in cal. n.e.2d ( .) n.w.2d cal.rptr.2d n.j.'.split())
-    texts = [[word for word in paragraph.split() if word not in stoplist]
-        for paragraph in cas.string.lower().split('\r\n')]
-    all_tokens = sum(texts, [])
-    tokens_n_times = set(word for word in set(all_tokens) if all_tokens.count(word) == 10)
-    texts = [[word for word in text if word not in tokens_n_times]
-        for text in texts]
-    dictionary = corpora.Dictionary(texts)
-    corpus = [dictionary.doc2bow(text) for text in texts]
-    tfidf = models.TfidfModel(corpus)
-    corpus_tfidf = tfidf[corpus]
-    #lsi = models.LsiModel(corpus_tfidf, id2word=dictionary, num_topics=15)
-    #corpus_lsi = lsi[corpus_tfidf]
-    lda = models.ldamodel.LdaModel(corpus_tfidf, id2word=dictionary, num_topics=15, alpha='auto', eval_every=5)
-    corpus_lda = lda[corpus_tfidf]
-
-def srlTopicModel2(cases, log=True):
-    if log:
-        import logging
-        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
-    from gensim import corpora, models
-    #stoplist = set('for a of the and to in cal. n.e.2d ( .) n.w.2d cal.rptr.2d n.j.'.split())
-    texts = []
-    for cas in cases:
-        srls = []
-        for srlSentence in cas.srlSentences:
-            for clause in srlSentence:
-                for role, text in clause.iteritems():
-                    srls.append(str((role, text)))
-        texts.append(srls)
-    #texts = [[word for word in cas.string.lower().split() if word not in stoplist]
-    #    for cas in cases]
-    """
-    all_tokens = sum(texts, [])
-    tokens_n_times = set(word for word in set(all_tokens) if all_tokens.count(word) <= 10)
-    texts = [[word for word in text if word not in tokens_n_times]
-        for text in texts]
-    """
-    dictionary = corpora.Dictionary(texts)
-    corpus = [dictionary.doc2bow(text) for text in texts]
-    tfidf = models.TfidfModel(corpus)
-    corpus_tfidf = tfidf[corpus]
-    #lsi = models.LsiModel(corpus_tfidf, id2word=dictionary, num_topics=15)
-    #corpus_lsi = lsi[corpus_tfidf]
-    lda = models.ldamodel.LdaModel(corpus_tfidf, id2word=dictionary, num_topics=15, alpha='auto', eval_every=5)
-    corpus_lda = lda[corpus_tfidf]
+            scores = [[], [], [], []]
+            for sentence in votes:
+                for person, score in enumerate(sentence):
+                    scores[person].append(score)
+            for person, lst in enumerate(scores):
+                if debug:
+                    print num2Person[person+1]
+                winners = np.argsort(lst)[-10:][::-1]
+                winners.sort()
+                for winner in winners:
+                    #cas.srlSummary[person+1].append(winner)
+                    if debug:
+                        print cas.sentences[winner]
+                print
+            """
+            for unused in range(numSummarySentences):
+                for i, winner in enumerate(np.argmax(votes, axis=0)):
+                    cas.srlSummary[i+1].append(winner)
+            if debug:
+                print str(cas.name)
+                for person, summarySentences in cas.srlSummary.iteritems():
+                    print person
+                    for summarySentence in summarySentences:
+                        print cas.sentences[summarySentence]
+            """
 
 if __name__ == "__main__":
     cases = data.getAllSavedCases(senna=True)
@@ -269,5 +249,8 @@ if __name__ == "__main__":
     labeledTraining = findLabels(cases)
     #readLabels(labeledTraining)
     unlabeledCases = filter(lambda x:x not in labeledTraining, cases)
-    testing = unlabeledCases
-    labelCases(labeledTraining, [], unlabeledCases, debug=True)
+    #features = ['srl', 'srlTopicModel', 'srlLSI']
+    #features = ['srlLSI']
+    features = ['unigrams']
+    #features = ['bigrams']
+    labelCases(labeledTraining, unlabeledCases, features, debug=True)

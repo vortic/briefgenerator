@@ -142,6 +142,19 @@ def topicModelWordVec():
         newModel[unit] = normalize(wordVec)
     return newModel
 
+def LSIWordVec():
+    model = gensim.models.lsimodel.LsiModel.load('models/lda/srlLSI')
+    topics = model.show_topics(num_words=1000, formatted=False)
+    newModel = {}
+    for i, topic in enumerate(topics):
+        for probability, unit in topic:
+            try:
+                newModel[unit][i] = (probability+1.0)/2.0
+            except:
+                newModel[unit] = [0]*len(topics)
+                newModel[unit][i] = (probability+1.0)/2.0
+    return newModel
+
 def srlTopicModel(cases, log=True, save=False):
     if log:
         import logging
@@ -161,10 +174,31 @@ def srlTopicModel(cases, log=True, save=False):
     if save:
         lda.save('models/lda/srlTopicModel')
 
+def srlLSI(cases, log=True, save=False):
+    if log:
+        import logging
+        logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
+    from gensim import corpora, models
+    texts = []
+    for cas in cases:
+        for srlSentence in cas.srlSentences:
+            sentence = []
+            for clause in srlSentence:
+                for role, text in clause.iteritems():
+                    sentence.append(str((role, text)))
+            texts.append(sentence)
+    dictionary = corpora.Dictionary(texts)
+    corpus = [dictionary.doc2bow(text) for text in texts]
+    lsi = models.lsimodel.LsiModel(corpus, id2word=dictionary, num_topics=15)
+    if save:
+        lsi.save('models/lda/srlLSI')
+
 if __name__ == "__main__":
-    #cases = data.getAllSavedCases(senna=True)
+    cases = data.getAllSavedCases(senna=True)
+    LSIWordVec()
+    #srlLSI(cases, save=True)
     #wordVecSrlBigrams(cases)
-    cas = case.Case('6850872635911328292')
+    #cas = case.Case('6850872635911328292')
     #representation = wordVecSrl(cases)
     """
     for cas in cases:
